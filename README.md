@@ -55,7 +55,7 @@ Use `ds --home <path>` if you want to place the runtime somewhere else.
 If you want to use the current working directory directly as the DeepScientist home, use:
 
 ```bash
-ds --hero
+ds --here
 ```
 
 This is equivalent to launching with `ds --home "$PWD"`.

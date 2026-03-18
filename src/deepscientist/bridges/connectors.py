@@ -8,8 +8,9 @@ from hmac import new as hmac_new
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
+from ..network import urlopen_with_proxy as urlopen
 from ..shared import append_jsonl, ensure_dir, utc_now
 from .base import BaseConnectorBridge, BridgeWebhookResult
 

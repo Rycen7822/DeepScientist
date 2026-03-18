@@ -156,12 +156,11 @@ test('parseMigrateArgs accepts target, --yes, and --restart', () => {
   assert.equal(parsed.restart, true);
 });
 
-test('resolveHome uses the current working directory when --hero is present', () => {
+test('resolveHome uses the current working directory when --here is present', () => {
   const originalCwd = process.cwd();
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-hero-'));
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-here-'));
   process.chdir(tempDir);
   try {
-    assert.equal(__internal.resolveHome(['--hero']), tempDir);
     assert.equal(__internal.resolveHome(['--here']), tempDir);
   } finally {
     process.chdir(originalCwd);

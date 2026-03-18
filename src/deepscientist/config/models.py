@@ -91,9 +91,9 @@ def default_runners() -> dict:
             "sandbox_mode": "workspace-write",
             "retry_on_failure": True,
             "retry_max_attempts": 5,
-            "retry_initial_backoff_sec": 1.0,
-            "retry_backoff_multiplier": 2.0,
-            "retry_max_backoff_sec": 8.0,
+            "retry_initial_backoff_sec": 10.0,
+            "retry_backoff_multiplier": 6.0,
+            "retry_max_backoff_sec": 1800.0,
             # Increase MCP tool timeout so codex can wait for long `bash_exec(mode='await', ...)`
             # or other durable MCP calls without prematurely timing out.
             # Mirrors DS_2027's `codex.mcp_tool_timeout_sec` default.

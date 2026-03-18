@@ -48,8 +48,8 @@ Usage:
   ds update --check
   ds update --yes
   ds migrate /data/DeepScientist
-  ds --hero
-  ds --hero doctor
+  ds --here
+  ds --here doctor
   ds --tui
   ds --both
   ds --host 0.0.0.0 --port 21000
@@ -71,7 +71,7 @@ Launcher flags:
   --stop                Stop the managed daemon
   --restart             Restart the managed daemon
   --home <path>         Use a custom DeepScientist home
-  --hero                Use the current working directory as DeepScientist home
+  --here                Use the current working directory as DeepScientist home
   --quest-id <id>       Open the TUI on one quest directly
 
 Update:
@@ -393,7 +393,7 @@ function resolveHome(args) {
   if (index >= 0 && index + 1 < args.length) {
     return path.resolve(args[index + 1]);
   }
-  if (args.includes('--hero') || args.includes('--here')) {
+  if (args.includes('--here')) {
     return process.cwd();
   }
   if (process.env.DEEPSCIENTIST_HOME) {
@@ -566,7 +566,7 @@ function renderLaunchHints({ home, url, bindUrl, pythonSelection }) {
   renderKeyValueRows([
     ['ds --port 21000', 'Change the web port'],
     ['ds --host 0.0.0.0 --port 21000', 'Bind on all interfaces'],
-    ['ds --hero', 'Use the current directory as home'],
+    ['ds --here', 'Use the current directory as home'],
     ['ds --both', 'Start web + TUI together'],
     ['ds --tui', 'Start the terminal workspace only'],
     ['ds --no-browser', 'Do not auto-open the browser'],
@@ -2031,7 +2031,7 @@ function normalizePythonCliArgs(args, home) {
       index += 1;
       continue;
     }
-    if (arg === '--hero' || arg === '--here') {
+    if (arg === '--here') {
       continue;
     }
     normalized.push(arg);

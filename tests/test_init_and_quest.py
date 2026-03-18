@@ -34,6 +34,38 @@ def test_init_creates_required_files(temp_home: Path) -> None:
     assert config["bootstrap"]["codex_last_checked_at"] is None
     assert runners["codex"]["model"] == "gpt-5.4"
     assert runners["codex"]["model_reasoning_effort"] == "xhigh"
+    assert runners["codex"]["retry_initial_backoff_sec"] == 10.0
+    assert runners["codex"]["retry_backoff_multiplier"] == 6.0
+    assert runners["codex"]["retry_max_backoff_sec"] == 1800.0
+
+
+def test_legacy_codex_retry_profile_is_upgraded_when_loading_normalized_runners(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    runners_path = manager.path_for("runners")
+    runners_path.write_text(
+        "\n".join(
+            [
+                "codex:",
+                "  enabled: true",
+                "  binary: codex",
+                "  retry_on_failure: true",
+                "  retry_max_attempts: 5",
+                "  retry_initial_backoff_sec: 1",
+                "  retry_backoff_multiplier: 2",
+                "  retry_max_backoff_sec: 8",
+                "",
+            ]
+        ),
+        encoding="utf-8",
+    )
+
+    runners = manager.load_named_normalized("runners")
+
+    assert runners["codex"]["retry_initial_backoff_sec"] == 10.0
+    assert runners["codex"]["retry_backoff_multiplier"] == 6.0
+    assert runners["codex"]["retry_max_backoff_sec"] == 1800.0
 
 
 def test_new_creates_standalone_git_repo(temp_home: Path) -> None:

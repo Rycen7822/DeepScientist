@@ -823,9 +823,9 @@ export function RegistrySettingsForm({
                     sandbox_mode: 'workspace-write',
                     retry_on_failure: true,
                     retry_max_attempts: 5,
-                    retry_initial_backoff_sec: 1,
-                    retry_backoff_multiplier: 2,
-                    retry_max_backoff_sec: 8,
+                    retry_initial_backoff_sec: 10,
+                    retry_backoff_multiplier: 6,
+                    retry_max_backoff_sec: 1800,
                     env: {},
                   },
                 })

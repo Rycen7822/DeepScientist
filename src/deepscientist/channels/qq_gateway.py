@@ -5,13 +5,13 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Callable
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from websockets.exceptions import ConnectionClosed
-from websockets.sync.client import connect as websocket_connect
 
 from ..bridges.connectors import QQConnectorBridge
 from ..connector_runtime import format_conversation_id
+from ..network import urlopen_with_proxy as urlopen, websocket_connect_with_proxy as websocket_connect
 from ..qq_profiles import qq_profile_label
 from ..shared import read_json, utc_now, write_json
 

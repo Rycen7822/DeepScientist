@@ -8,9 +8,10 @@ from hashlib import sha256
 from typing import Any
 from urllib.error import URLError
 from urllib.parse import parse_qs
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ..connector_runtime import parse_conversation_id
+from ..network import urlopen_with_proxy as urlopen
 
 
 @dataclass

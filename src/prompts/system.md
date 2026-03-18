@@ -1866,8 +1866,12 @@ When summarizing long logs, campaigns, or multi-agent work:
   - if you need to recover or verify ids before monitoring, call `bash_exec(mode='history')` and use the reverse-chronological lines
   - after launch, monitor with explicit sleeps plus `bash_exec(mode='list')` and `bash_exec(mode='read', id=..., tail_limit=..., order='desc')`
   - after the first log read, prefer incremental checks with `bash_exec(mode='read', id=..., after_seq=last_seen_seq, tail_limit=..., order='asc')` so you only inspect newly appended evidence
+  - when supervising a long-running baseline, experiment, or analysis run, judge health by forward progress rather than by whether a final artifact has already appeared
+  - treat new sample counters, task counters, saved-result markers, output files, `last_output_seq`, and `last_progress` as the primary liveness signals
+  - if logs expose counters such as `6/46`, `99 instances`, task-completion markers, or save markers, compare those deltas first before inferring that the run is stuck
   - use `silent_seconds`, `progress_age_seconds`, `signal_age_seconds`, and `watchdog_overdue` from `bash_exec(mode='list'|'read', ...)` as the default watchdog clues instead of inferring staleness from prose alone
-  - if the run is clearly invalid, wedged, or superseded, stop it with `bash_exec(mode='kill', id=..., wait=true, timeout_seconds=...)`; if it must die immediately, add `force=true`
+  - do not restart or kill a run merely because a short observation window passed without final completion
+  - if the run is clearly invalid, wedged, superseded, or shows no meaningful delta across a sufficiently long observation window, stop it with `bash_exec(mode='kill', id=..., wait=true, timeout_seconds=...)`; if it must die immediately, add `force=true`
   - after a kill-and-wait completes, relaunch cleanly with a fresh structured `comment` rather than reusing the broken session
 - For a command that is likely to run for a long time, do not launch it and disappear. After `bash_exec(mode='detach', ...)`, keep monitoring it in the same turn through an explicit wait-and-check loop.
 - The default long-run monitoring cadence is:
@@ -1877,16 +1881,20 @@ When summarizing long logs, campaigns, or multi-agent work:
   - sleep about `600s`, then inspect again
   - sleep about `1800s`, then inspect again
   - if the run is still active, continue checking about every `1800s`
+- You may widen those windows when the user already told you that the model, endpoint, or workload is expected to be slow; prefer patience over premature intervention in that case.
 - You may monitor more frequently, but for baseline reproduction, baseline-running phases, main experiments, artifact-production phases, and other important detached work, never let more than `1800s` (30 minutes) pass without inspecting real logs or status again.
 - For those same important long-running tasks, if the run is still active after the inspection, ensure the user-visible thread also receives a concise `artifact.interact(kind='progress', ...)` update within that same `1800s` window.
 - If the only blocker is a missing user-supplied external credential that has already been requested through a blocking interaction and no other useful work is possible, you may intentionally park with a much longer low-frequency wait such as `bash_exec(command='sleep 3600', mode='await', timeout_seconds=3700, ...)` to avoid busy-looping.
 - If the environment or tool surface makes direct shell waiting awkward, an equivalent bounded wait such as `bash_exec(mode='await', id=..., timeout_seconds=...)` is acceptable, but the behavior must stay the same: wait, inspect real logs, then continue.
 - Never stay silent for more than `1800s` across an important long-running task.
-- After each sleep/await cycle finishes and you inspect the real logs again, send `artifact.interact(kind='progress', ...)` with:
+- After each sleep/await cycle finishes and you inspect the real logs again, first compare the new evidence against the last inspection.
+- If the inspection reveals a human-meaningful delta such as new samples, new completed tasks, new saved outputs, a changed `last_progress`, a route change, or a real problem, send `artifact.interact(kind='progress', ...)` with:
   - the current status
   - the latest concrete evidence from logs or outputs
+  - what changed since the previous inspection
   - the next planned check time
   - the estimated next reply time (usually the next sleep interval you are about to use)
+- If the run still looks healthy but there is no human-meaningful delta yet, continue monitoring silently instead of sending a no-change keepalive just because a sleep finished.
 - For baseline reproduction, main experiments, analysis experiments, and similar user-relevant long runs, translate that monitoring ETA into user-facing language such as how long until the next meaningful result or the next expected update.
 - Outside those detached experiment waits, if active work has already consumed roughly 10 to 30 tool calls without any user-visible checkpoint, send a concise `artifact.interact(kind='progress', ...)` before continuing.
 - If you forget a bash id, do not guess. Use `bash_exec(mode='history')` or `bash_exec(mode='list')` and recover it from the reverse-chronological session list.

@@ -127,7 +127,7 @@ def test_daemon_update_status_uses_launcher_json_contract(
             stdout=json.dumps(
                 {
                     "ok": True,
-                    "current_version": "1.5.3",
+                    "current_version": "1.5.4",
                     "latest_version": "1.5.3",
                     "update_available": True,
                     "can_self_update": True,
@@ -1909,6 +1909,54 @@ def test_daemon_retries_failed_runner_attempt_and_continues_with_retry_context(t
     )
 
 
+def test_daemon_retry_policy_upgrades_legacy_codex_backoff_profile(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+
+    policy = app._runner_retry_policy(
+        "codex",
+        {
+            "retry_on_failure": True,
+            "retry_max_attempts": 5,
+            "retry_initial_backoff_sec": 1,
+            "retry_backoff_multiplier": 2,
+            "retry_max_backoff_sec": 8,
+        },
+    )
+
+    assert policy["max_attempts"] == 5
+    assert policy["initial_backoff_sec"] == 10.0
+    assert policy["backoff_multiplier"] == 6.0
+    assert policy["max_backoff_sec"] == 1800.0
+    assert app._retry_delay_seconds(policy, attempt_index=2) == 10.0
+    assert app._retry_delay_seconds(policy, attempt_index=3) == 60.0
+    assert app._retry_delay_seconds(policy, attempt_index=4) == 360.0
+    assert app._retry_delay_seconds(policy, attempt_index=5) == 1800.0
+
+
+def test_daemon_retry_policy_preserves_custom_codex_backoff_profile(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    app = DaemonApp(temp_home)
+
+    policy = app._runner_retry_policy(
+        "codex",
+        {
+            "retry_on_failure": True,
+            "retry_max_attempts": 4,
+            "retry_initial_backoff_sec": 3,
+            "retry_backoff_multiplier": 3,
+            "retry_max_backoff_sec": 90,
+        },
+    )
+
+    assert policy["max_attempts"] == 4
+    assert policy["initial_backoff_sec"] == 3.0
+    assert policy["backoff_multiplier"] == 3.0
+    assert policy["max_backoff_sec"] == 90.0
+
+
 def test_daemon_retry_exhausts_after_five_attempts(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
@@ -1956,11 +2004,15 @@ def test_daemon_retry_exhausts_after_five_attempts(temp_home: Path) -> None:
     while time.time() < deadline:
         snapshot = app.quest_service.snapshot(quest_id)
         events = read_jsonl(Path(quest["quest_root"]) / ".ds" / "events.jsonl")
-        if any(item.get("type") == "runner.turn_retry_exhausted" for item in events):
+        if (
+            any(item.get("type") == "runner.turn_error" for item in events)
+            and snapshot.get("retry_state") is None
+            and str(snapshot.get("runtime_status") or "").strip() != "running"
+        ):
             break
         time.sleep(0.05)
     else:
-        raise AssertionError("retry sequence did not exhaust within the expected time")
+        raise AssertionError("retry sequence did not settle into a final error within the expected time")
 
     snapshot = app.quest_service.snapshot(quest_id)
     events = read_jsonl(Path(quest["quest_root"]) / ".ds" / "events.jsonl")

@@ -6,7 +6,7 @@ import subprocess
 from copy import deepcopy
 from pathlib import Path
 from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ..connector_profiles import PROFILEABLE_CONNECTOR_NAMES, normalize_connector_config
 from ..connector_runtime import infer_connector_transport
@@ -29,6 +29,7 @@ from ..qq_profiles import (
     normalize_qq_connector_config,
     qq_profile_label,
 )
+from ..network import urlopen_with_proxy as urlopen
 from ..shared import read_json, read_text, read_yaml, resolve_runner_binary, run_command, sha256_text, utc_now, which, write_text, write_yaml
 from .models import (
     CONFIG_NAMES,
@@ -386,7 +387,7 @@ This page edits `{home_text}/config/runners.yaml`.
 - `claude` remains TODO / reserved in the current open-source release and is not runnable yet
 - keep `codex.model_reasoning_effort: xhigh` unless you explicitly want a lighter default
 - keep `codex.retry_on_failure: true` so transient Codex failures can resume automatically
-- keep retry timing near `1s / 2x / 8s max` unless you have a strong reason to slow recovery down
+- keep retry timing near `10s / 6x / 1800s max` so Codex backs off exponentially and the last retry waits about 30 minutes
 - DeepScientist hard-limits one turn to at most `5` total attempts, even if the config says more
 
 ## Test behavior
@@ -1325,6 +1326,14 @@ Use **Test** when the file exposes runtime dependencies.
         elif name == "mcp_servers":
             prepared = self._normalize_mcp_payload(prepared)
         defaults = default_payload(name, self.home)
+        if name == "runners":
+            normalized = self._deep_merge(defaults, prepared)
+            codex = normalized.get("codex")
+            if isinstance(codex, dict) and self._looks_like_legacy_codex_retry_profile(codex):
+                codex["retry_initial_backoff_sec"] = 10.0
+                codex["retry_backoff_multiplier"] = 6.0
+                codex["retry_max_backoff_sec"] = 1800.0
+            return normalized
         if name == "connectors":
             normalized = deepcopy(defaults)
             for connector_name, connector_payload in prepared.items():
@@ -1357,6 +1366,16 @@ Use **Test** when the file exposes runtime dependencies.
                 normalized[connector_name] = base
             return normalized
         return self._deep_merge(defaults, prepared)
+
+    @staticmethod
+    def _looks_like_legacy_codex_retry_profile(payload: dict) -> bool:
+        try:
+            initial = float(payload.get("retry_initial_backoff_sec"))
+            multiplier = float(payload.get("retry_backoff_multiplier"))
+            max_backoff = float(payload.get("retry_max_backoff_sec"))
+        except (TypeError, ValueError):
+            return False
+        return abs(initial - 1.0) < 1e-9 and abs(multiplier - 2.0) < 1e-9 and abs(max_backoff - 8.0) < 1e-9
 
     def _normalize_plugins_payload(self, payload: dict) -> dict:
         normalized = deepcopy(payload)

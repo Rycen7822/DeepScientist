@@ -42,7 +42,7 @@ By default, the DeepScientist home is `~/DeepScientist` on macOS and Linux, and 
 If you want to use the current working directory as the DeepScientist home directly, run:
 
 ```bash
-ds --hero
+ds --here
 ```
 
 This is equivalent to `ds --home "$PWD"`.

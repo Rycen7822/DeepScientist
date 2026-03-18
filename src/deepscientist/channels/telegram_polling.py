@@ -4,9 +4,10 @@ import json
 import threading
 from pathlib import Path
 from typing import Any, Callable
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ..connector_runtime import format_conversation_id
+from ..network import urlopen_with_proxy as urlopen
 from ..shared import read_json, utc_now, write_json
 
 

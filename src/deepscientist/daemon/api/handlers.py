@@ -954,7 +954,7 @@ npm --prefix src/ui run build</pre>
     def latex_compile(self, project_id: str, folder_id: str, body: dict) -> dict:
         return self.app.latex_service.compile(
             project_id,
-            unquote(folder_id),
+            folder_id,
             compiler=body.get("compiler"),
             main_file_id=body.get("main_file_id"),
             stop_on_first_error=body.get("stop_on_first_error"),
@@ -968,13 +968,13 @@ npm --prefix src/ui run build</pre>
             limit = int(limit_raw)
         except ValueError:
             limit = 10
-        return self.app.latex_service.list_builds(project_id, unquote(folder_id), limit=limit)
+        return self.app.latex_service.list_builds(project_id, folder_id, limit=limit)
 
     def latex_build(self, project_id: str, folder_id: str, build_id: str) -> dict:
-        return self.app.latex_service.get_build(project_id, unquote(folder_id), build_id)
+        return self.app.latex_service.get_build(project_id, folder_id, build_id)
 
     def latex_build_pdf(self, project_id: str, folder_id: str, build_id: str) -> tuple[int, dict, bytes]:
-        payload, file_name = self.app.latex_service.get_build_pdf(project_id, unquote(folder_id), build_id)
+        payload, file_name = self.app.latex_service.get_build_pdf(project_id, folder_id, build_id)
         headers = {
             **self._asset_headers("application/pdf"),
             "Content-Disposition": f'inline; filename="{file_name}"',
@@ -982,11 +982,11 @@ npm --prefix src/ui run build</pre>
         return 200, headers, payload
 
     def latex_build_log(self, project_id: str, folder_id: str, build_id: str) -> tuple[int, dict, bytes]:
-        text = self.app.latex_service.get_build_log_text(project_id, unquote(folder_id), build_id)
+        text = self.app.latex_service.get_build_log_text(project_id, folder_id, build_id)
         return 200, self._asset_headers("text/plain; charset=utf-8"), text.encode("utf-8")
 
     def latex_archive(self, project_id: str, folder_id: str) -> tuple[int, dict, bytes]:
-        payload, file_name = self.app.latex_service.create_sources_archive(project_id, unquote(folder_id))
+        payload, file_name = self.app.latex_service.create_sources_archive(project_id, folder_id)
         headers = {
             **self._asset_headers("application/zip"),
             "Content-Disposition": f'attachment; filename="{file_name}"',

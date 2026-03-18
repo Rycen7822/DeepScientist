@@ -9,7 +9,7 @@ import sys
 import webbrowser
 from pathlib import Path
 from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from .artifact import ArtifactService
 from .config import ConfigManager
@@ -18,6 +18,7 @@ from .doctor import render_doctor_report, run_doctor
 from .home import default_home, ensure_home_layout, repo_root
 from .memory import MemoryService
 from .migration import migrate_deepscientist_root
+from .network import configure_runtime_proxy, urlopen_with_proxy as urlopen
 from .prompts import PromptBuilder
 from .quest import QuestService
 from .registries import BaselineRegistry
@@ -37,6 +38,7 @@ def _local_ui_url(host: str, port: int) -> str:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="ds", description="DeepScientist Core skeleton")
     parser.add_argument("--home", default=None, help="Override DeepScientist home")
+    parser.add_argument("--proxy", default=None, help="Explicit outbound HTTP/WS proxy, for example `http://127.0.0.1:7890`.")
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
@@ -473,6 +475,7 @@ def migrate_command(home: Path, target: str) -> int:
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    configure_runtime_proxy(args.proxy)
     home = resolve_home(args)
 
     if args.command == "init":

@@ -8,11 +8,12 @@ import shutil
 import subprocess
 import threading
 import time
+from datetime import UTC, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 from urllib.parse import parse_qs, urlencode, urlparse
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
 from ..artifact import ArtifactService
 from ..bash_exec import BashExecService
@@ -32,6 +33,7 @@ from ..connector_runtime import conversation_identity_key, format_conversation_i
 from ..config import ConfigManager
 from ..home import repo_root
 from ..memory import MemoryService
+from ..network import urlopen_with_proxy as urlopen
 from ..latex_runtime import QuestLatexService
 from ..prompts import PromptBuilder
 from ..prompts.builder import STANDARD_SKILLS
@@ -52,6 +54,13 @@ from websockets.sync.server import Server as WebSocketServer
 from websockets.sync.server import ServerConnection, serve as websocket_serve
 
 TERMINAL_STREAM_IDLE_SLEEP_SECONDS = 0.02
+CODEX_RETRY_DEFAULT_MAX_ATTEMPTS = 5
+CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC = 10.0
+CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER = 6.0
+CODEX_RETRY_DEFAULT_MAX_BACKOFF_SEC = 1800.0
+LEGACY_CODEX_RETRY_INITIAL_BACKOFF_SEC = 1.0
+LEGACY_CODEX_RETRY_BACKOFF_MULTIPLIER = 2.0
+LEGACY_CODEX_RETRY_MAX_BACKOFF_SEC = 8.0
 
 
 class DaemonApp:
@@ -1304,7 +1313,7 @@ class DaemonApp:
                 message_id=claimed_message_id,
                 run_id=run_id,
             )
-        retry_policy = self._runner_retry_policy(runner_cfg if isinstance(runner_cfg, dict) else {})
+        retry_policy = self._runner_retry_policy(runner_name, runner_cfg if isinstance(runner_cfg, dict) else {})
         max_attempts = int(retry_policy.get("max_attempts") or 1)
         turn_id = generate_id("turn")
         retry_context: dict[str, Any] | None = None
@@ -1380,7 +1389,7 @@ class DaemonApp:
                 )
                 if bool(retry_policy.get("enabled")) and attempt_index < max_attempts:
                     delay_seconds = self._retry_delay_seconds(retry_policy, attempt_index=attempt_index + 1)
-                    next_retry_at = utc_now() if delay_seconds <= 0 else None
+                    next_retry_at = self._retry_next_timestamp(delay_seconds)
                     self.quest_service.update_runtime_state(
                         quest_root=quest_root,
                         status="running",
@@ -1505,6 +1514,7 @@ class DaemonApp:
             )
             if bool(retry_policy.get("enabled")) and attempt_index < max_attempts:
                 delay_seconds = self._retry_delay_seconds(retry_policy, attempt_index=attempt_index + 1)
+                next_retry_at = self._retry_next_timestamp(delay_seconds)
                 self.quest_service.update_runtime_state(
                     quest_root=quest_root,
                     status="running",
@@ -1516,7 +1526,7 @@ class DaemonApp:
                         "max_attempts": max_attempts,
                         "last_run_id": result.run_id,
                         "last_error": failure_summary,
-                        "next_retry_at": None,
+                        "next_retry_at": next_retry_at,
                     },
                 )
                 self._append_retry_event(
@@ -1658,12 +1668,43 @@ class DaemonApp:
             return default
         return resolved if resolved >= 0 else default
 
-    def _runner_retry_policy(self, runner_cfg: dict[str, Any]) -> dict[str, Any]:
+    @staticmethod
+    def _float_matches(left: float, right: float) -> bool:
+        return abs(left - right) < 1e-9
+
+    def _runner_retry_policy(self, runner_name: str, runner_cfg: dict[str, Any]) -> dict[str, Any]:
         enabled = bool(runner_cfg.get("retry_on_failure", True))
-        max_attempts = min(5, self._coerce_positive_int(runner_cfg.get("retry_max_attempts", 5), 5))
-        initial_backoff = self._coerce_nonnegative_float(runner_cfg.get("retry_initial_backoff_sec", 1.0), 1.0)
-        multiplier = max(1.0, self._coerce_nonnegative_float(runner_cfg.get("retry_backoff_multiplier", 2.0), 2.0))
-        max_backoff = max(initial_backoff, self._coerce_nonnegative_float(runner_cfg.get("retry_max_backoff_sec", 8.0), 8.0))
+        max_attempts = min(
+            CODEX_RETRY_DEFAULT_MAX_ATTEMPTS,
+            self._coerce_positive_int(runner_cfg.get("retry_max_attempts", CODEX_RETRY_DEFAULT_MAX_ATTEMPTS), CODEX_RETRY_DEFAULT_MAX_ATTEMPTS),
+        )
+        initial_backoff = self._coerce_nonnegative_float(
+            runner_cfg.get("retry_initial_backoff_sec", CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC),
+            CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC,
+        )
+        multiplier = max(
+            1.0,
+            self._coerce_nonnegative_float(
+                runner_cfg.get("retry_backoff_multiplier", CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER),
+                CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER,
+            ),
+        )
+        max_backoff = max(
+            initial_backoff,
+            self._coerce_nonnegative_float(
+                runner_cfg.get("retry_max_backoff_sec", CODEX_RETRY_DEFAULT_MAX_BACKOFF_SEC),
+                CODEX_RETRY_DEFAULT_MAX_BACKOFF_SEC,
+            ),
+        )
+        if (
+            runner_name == "codex"
+            and self._float_matches(initial_backoff, LEGACY_CODEX_RETRY_INITIAL_BACKOFF_SEC)
+            and self._float_matches(multiplier, LEGACY_CODEX_RETRY_BACKOFF_MULTIPLIER)
+            and self._float_matches(max_backoff, LEGACY_CODEX_RETRY_MAX_BACKOFF_SEC)
+        ):
+            initial_backoff = CODEX_RETRY_DEFAULT_INITIAL_BACKOFF_SEC
+            multiplier = CODEX_RETRY_DEFAULT_BACKOFF_MULTIPLIER
+            max_backoff = CODEX_RETRY_DEFAULT_MAX_BACKOFF_SEC
         return {
             "enabled": enabled,
             "max_attempts": max_attempts,
@@ -1688,6 +1729,12 @@ class DaemonApp:
         max_backoff = float(retry_policy.get("max_backoff_sec") or initial_backoff or 0.0)
         delay = initial_backoff * pow(multiplier, max(0, attempt_index - 2))
         return max(0.0, min(delay, max_backoff))
+
+    @staticmethod
+    def _retry_next_timestamp(delay_seconds: float) -> str:
+        if delay_seconds <= 0:
+            return utc_now()
+        return (datetime.now(UTC) + timedelta(seconds=delay_seconds)).replace(microsecond=0).isoformat()
 
     def _wait_for_retry_delay(self, quest_id: str, delay_seconds: float) -> bool:
         if delay_seconds <= 0:
@@ -4212,6 +4259,7 @@ class DaemonApp:
                         "document_asset",
                         "terminal_restore",
                         "terminal_history",
+                        "latex_builds",
                     }:
                         payload = result(**params, path=self.path)
                     elif method == "GET":

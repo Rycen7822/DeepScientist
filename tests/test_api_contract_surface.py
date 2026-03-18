@@ -379,8 +379,12 @@ def test_runner_settings_surface_exposes_reasoning_and_retry_controls() -> None:
     assert "key: 'retry_max_backoff_sec'" in settings_catalog_source
     assert "retry_on_failure: true" in settings_form_source
     assert "retry_max_attempts: 5" in settings_form_source
+    assert "retry_initial_backoff_sec: 10" in settings_form_source
+    assert "retry_backoff_multiplier: 6" in settings_form_source
+    assert "retry_max_backoff_sec: 1800" in settings_form_source
     assert "codex.retry_on_failure: true" in config_service_source
     assert "at most `5` total attempts" in config_service_source
+    assert "10s / 6x / 1800s max" in config_service_source
     assert "not runnable yet" in config_service_source
 
 

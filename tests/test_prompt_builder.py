@@ -711,6 +711,8 @@ def test_prompt_builder_mentions_long_running_bash_exec_monitoring_protocol(temp
     assert "silent_seconds" in prompt
     assert "watchdog_overdue" in prompt
     assert "tqdm-style progress reporter" in prompt
+    assert "judge health by forward progress" in prompt
+    assert "do not kill or restart a run merely because a short watch window passed without final completion" in prompt
 
 
 def test_prompt_builder_requires_all_shell_like_commands_to_use_bash_exec(temp_home: Path) -> None:
