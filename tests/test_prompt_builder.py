@@ -138,6 +138,8 @@ def test_prompt_builder_loads_qq_connector_contract_when_bound(temp_home: Path) 
     assert "## Connector Contract" in prompt
     assert "connector_contract_id: qq" in prompt
     assert "loaded only when QQ is the active or bound external connector" in prompt
+    assert "bridge itself emits the immediate transport-level receipt acknowledgement" in prompt
+    assert "do not waste your first model response" in prompt
     assert "connector_hints={\"qq\": {\"render_mode\": \"markdown\"}}" in prompt
     assert "automatically reuse the most recent inbound QQ message id" in prompt
     assert "/absolute/path/to/main_summary.png" in prompt
@@ -780,7 +782,7 @@ def test_prompt_builder_mentions_queued_user_message_mailbox(temp_home: Path) ->
 
     assert "pending_user_message_count: 1" in prompt
     assert "queued user messages waiting to be picked up via artifact.interact" in prompt
-    assert "immediately send a follow-up artifact.interact acknowledgement" in prompt
+    assert "immediately send one substantive artifact.interact(...) follow-up" in prompt
 
 
 def test_prompt_builder_mentions_immediate_acknowledgement_after_mailbox_poll(temp_home: Path) -> None:
@@ -794,7 +796,8 @@ def test_prompt_builder_mentions_immediate_acknowledgement_after_mailbox_poll(te
     )
 
     assert "artifact.interact(include_recent_inbound_messages=True) is the queued human-message mailbox" in prompt
-    assert "immediately call artifact.interact(...) again to confirm receipt" in prompt
+    assert "immediately send one substantive artifact.interact(...) follow-up" in prompt
+    assert "do not send a redundant receipt-only message" in prompt
     assert "current background subtask is paused" in prompt
 
 

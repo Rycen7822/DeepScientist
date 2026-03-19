@@ -3,6 +3,8 @@
 - connector_contract_id: qq
 - connector_contract_scope: loaded only when QQ is the active or bound external connector for this quest
 - connector_contract_goal: use `artifact.interact(...)` as the main durable user-visible thread on QQ instead of exposing raw internal runner or tool chatter
+- qq_runtime_ack_rule: the QQ bridge itself emits the immediate transport-level receipt acknowledgement before the model turn starts
+- qq_no_duplicate_ack_rule: do not waste your first model response or first `artifact.interact(...)` call on a redundant receipt-only acknowledgement such as "received", "已收到", or "I am processing" when the bridge already sent that
 - qq_reply_style: keep QQ replies concise, milestone-first, respectful, and easy to scan on a phone
 - qq_reply_length_rule: for ordinary QQ progress updates, normally use only 2 to 4 short sentences, or 3 short bullets at most
 - qq_summary_first_rule: start with the conclusion the user cares about, then what it means, then the next action
@@ -16,6 +18,7 @@
 - qq_default_text_rule: plain text is the default and safest QQ mode
 - qq_absolute_path_rule: when you request native QQ image or file delivery via an attachment `path`, prefer an absolute path
 - qq_failure_rule: if `artifact.interact(...)` returns `attachment_issues` or `delivery_results` errors, treat that as a real delivery failure and adapt before assuming the user received the media
+- qq_first_followup_rule: after a new inbound QQ message, your first substantive follow-up should either answer directly or give the first meaningful checkpoint and next action, not a second bare acknowledgement
 
 ## QQ Runtime Capabilities
 

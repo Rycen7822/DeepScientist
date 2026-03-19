@@ -2304,7 +2304,8 @@ def test_user_message_queue_is_delivered_only_when_artifact_interact_polls(temp_
     assert [item["message_id"] for item in polled["recent_inbound_messages"]] == [first["id"], second["id"]]
     assert "这是最新用户的要求" in polled["agent_instruction"]
     assert "优先于当前后台子任务" in polled["agent_instruction"]
-    assert "立即再调用一次 artifact.interact" in polled["agent_instruction"]
+    assert "立即发送一条有实际内容的 follow-up artifact.interact" in polled["agent_instruction"]
+    assert "不要再重复发送一条只有“已收到/处理中”的确认" in polled["agent_instruction"]
     assert "先检查训练入口。" in polled["agent_instruction"]
     assert "然后核对依赖版本。" in polled["agent_instruction"]
 
@@ -2360,7 +2361,8 @@ def test_user_message_queue_agent_instruction_respects_english_locale(temp_home:
 
     assert "These are the latest user requirements in chronological order." in polled["agent_instruction"]
     assert "take priority over the current background subtask" in polled["agent_instruction"]
-    assert "Immediately call artifact.interact(...) again" in polled["agent_instruction"]
+    assert "Immediately send one substantive follow-up artifact.interact" in polled["agent_instruction"]
+    assert "do not send a redundant receipt-only message" in polled["agent_instruction"]
     assert "Check the training entrypoint first." in polled["agent_instruction"]
 
     no_new_message = artifact.interact(

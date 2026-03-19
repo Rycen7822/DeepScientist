@@ -2813,8 +2813,8 @@ class QuestService:
                 ),
                 self.localized_copy(
                     quest_root=quest_root,
-                    zh="- 立即再调用一次 artifact.interact(...)，明确告知你已经收到这些用户消息。",
-                    en="- Immediately call artifact.interact(...) again to confirm that you received these user messages.",
+                    zh="- 立即发送一条有实际内容的 follow-up artifact.interact(...)；如果当前 connector 的运行时已经替你发过即时回执，就不要再重复发送一条只有“已收到/处理中”的确认。",
+                    en="- Immediately send one substantive follow-up artifact.interact(...); if the active connector runtime already sent the transport-level receipt acknowledgement, do not send a redundant receipt-only message such as 'received' or 'processing'.",
                 ),
                 self.localized_copy(
                     quest_root=quest_root,

@@ -1027,7 +1027,8 @@ For `artifact.interact(...)` specifically:
 - ordinary user-facing progress updates should read like a short collaborator message, not like a monitoring transcript, execution diary, or internal postmortem
 - when `artifact.interact(...)` returns queued user requirements, treat that mailbox payload as the latest user instruction bundle
 - if queued user requirements were returned, treat them as higher priority than the current background subtask until you have acknowledged them
-- immediately follow a non-empty mailbox poll with another `artifact.interact(...)` update that confirms receipt
+- immediately follow a non-empty mailbox poll with one substantive `artifact.interact(...)` follow-up update
+  - if the active connector runtime already emitted a transport-level receipt acknowledgement before your turn, do not send a redundant receipt-only update such as "received" or "processing"
   - if the request is directly answerable, answer it in that immediate follow-up update
   - otherwise say the current subtask is being paused, give a short execution plan plus nearest report-back point, then complete the user request first
 - after completing that interrupting user request, send another `artifact.interact(...)` update with the full result before resuming older work
