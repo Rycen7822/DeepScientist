@@ -15,6 +15,11 @@ from pathlib import Path, PurePosixPath
 from typing import Any
 from urllib.parse import quote
 
+try:
+    import fcntl  # pragma: no cover - exercised on POSIX
+except ImportError:  # pragma: no cover - exercised on Windows
+    fcntl = None
+
 from ..artifact.metrics import build_metrics_timeline, extract_latest_metric
 from ..config import ConfigManager
 from ..connector_runtime import conversation_identity_key, normalize_conversation_id, parse_conversation_id

@@ -230,6 +230,7 @@ copy_source_tree() {
     tar -C "$SOURCE_ROOT" -cf - \
       --exclude='./.git' \
       --exclude='./.pytest_cache' \
+      --exclude='./build' \
       --exclude='./node_modules' \
       --exclude='./ui' \
       --exclude='./src/ui/node_modules' \
@@ -247,6 +248,7 @@ prune_tree() {
   rm -rf \
     "$target/.git" \
     "$target/.pytest_cache" \
+    "$target/build" \
     "$target/node_modules" \
     "$target/ui" \
     "$target/src/ui/node_modules" \
