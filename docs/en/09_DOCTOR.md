@@ -114,13 +114,16 @@ Also check:
 MiniMax-specific note:
 
 - if MiniMax fails on the current `@openai/codex` latest, install `npm install -g @openai/codex@0.57.0`
+- when DeepScientist detects a MiniMax profile on startup and the installed Codex CLI is not `0.57.0`, it now offers to reinstall `0.57.0` automatically in interactive terminal launches
 - create a MiniMax `Coding Plan Key` first
-- clear `OPENAI_API_KEY` and `OPENAI_BASE_URL` in the current shell before exporting `MINIMAX_API_KEY`
+- for plain terminal `codex --profile <name>` checks, clear `OPENAI_API_KEY` and `OPENAI_BASE_URL` in the current shell before exporting `MINIMAX_API_KEY`
 - use `https://api.minimaxi.com/v1`
 - the `codex-MiniMax-*` model names shown on MiniMax's current Codex CLI page did not pass reliably through Codex CLI in local testing with the provided key
-- the locally verified working model name is `MiniMax-M2.7`
+- the locally verified DeepScientist model names are `MiniMax-M2.7` and `MiniMax-M2.5`
+- for `m25`, use `MiniMax-M2.5`, not `codex-MiniMax-M2.5`
 - DeepScientist can auto-adapt MiniMax's profile-only `model_provider` / `model` config shape during probe and runtime
-- if you also want plain terminal `codex --profile <name>` to work directly, put `model_provider = "minimax"` and `model = "MiniMax-M2.7"` at the top level of `~/.codex/config.toml`
+- DeepScientist also strips conflicting `OPENAI_*` auth variables automatically for providers that set `requires_openai_auth = false`
+- if you also want plain terminal `codex --profile <name>` to work directly, put `model_provider = "minimax"` and the matching top-level model such as `MiniMax-M2.7` or `MiniMax-M2.5` in `~/.codex/config.toml`
 - DeepScientist automatically downgrades `xhigh` to `high` when it detects a Codex CLI older than `0.63.0`
 
 ### The configured Codex model is unavailable

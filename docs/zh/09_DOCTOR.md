@@ -116,13 +116,16 @@ ds --codex /absolute/path/to/codex --codex-profile m27
 MiniMax 补充说明：
 
 - 如果 MiniMax 在当前最新版 `@openai/codex` 上失败，直接安装 `npm install -g @openai/codex@0.57.0`
+- 如果 DeepScientist 在启动时检测到 MiniMax profile，但当前 Codex CLI 不是 `0.57.0`，现在会在交互式终端里主动提示是否自动安装 `0.57.0`
 - 先创建 MiniMax `Coding Plan Key`
-- 在当前 shell 里先执行 `unset OPENAI_API_KEY` 和 `unset OPENAI_BASE_URL`
+- 如果你要单独在终端里验证 `codex --profile <name>`，先在当前 shell 里执行 `unset OPENAI_API_KEY` 和 `unset OPENAI_BASE_URL`
 - 使用 `https://api.minimaxi.com/v1`
 - MiniMax 官方 Codex CLI 页面当前给出的 `codex-MiniMax-*` 模型名，在本地用提供的 key 实测并不能稳定通过 Codex CLI
-- 当前本地实测可用的模型名是 `MiniMax-M2.7`
+- 当前本地实测可用于 DeepScientist 的模型名是 `MiniMax-M2.7` 和 `MiniMax-M2.5`
+- 如果你要走 `m25`，请使用 `MiniMax-M2.5`，不要写成 `codex-MiniMax-M2.5`
 - DeepScientist 现在可以在 probe 和运行时自动适配 MiniMax profile-only 的 `model_provider` / `model` 配置形态
-- 如果你还希望终端里的 `codex --profile <name>` 也直接可用，再在 `~/.codex/config.toml` 顶层补上 `model_provider = "minimax"` 和 `model = "MiniMax-M2.7"`
+- 当 provider 设置了 `requires_openai_auth = false` 时，DeepScientist 也会自动移除冲突的 `OPENAI_*` 认证环境变量
+- 如果你还希望终端里的 `codex --profile <name>` 也直接可用，再在 `~/.codex/config.toml` 顶层补上 `model_provider = "minimax"`，以及对应的顶层 `model`，例如 `MiniMax-M2.7` 或 `MiniMax-M2.5`
 - 当 DeepScientist 检测到 Codex CLI 版本低于 `0.63.0` 时，会自动把 `xhigh` 降级成 `high`
 
 ### 当前配置的 Codex 模型不可用

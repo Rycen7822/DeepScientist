@@ -77,6 +77,33 @@ function parseBooleanFlagValue(rawValue) {
   return null;
 }
 
+function parseCodexCliVersion(text) {
+  const match = String(text || '').match(/codex-cli\s+(\d+)\.(\d+)\.(\d+)/i);
+  if (!match) {
+    return null;
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function formatCodexCliVersion(version) {
+  if (!Array.isArray(version) || version.length !== 3) {
+    return '';
+  }
+  return version.join('.');
+}
+
+function compareCodexCliVersion(left, right) {
+  const leftParts = Array.isArray(left) ? left : [0, 0, 0];
+  const rightParts = Array.isArray(right) ? right : [0, 0, 0];
+  for (let index = 0; index < 3; index += 1) {
+    const delta = Number(leftParts[index] || 0) - Number(rightParts[index] || 0);
+    if (delta !== 0) {
+      return delta;
+    }
+  }
+  return 0;
+}
+
 function parseYoloArg(args, index, currentValue = true) {
   const arg = args[index];
   if (arg === '--yolo') {
@@ -621,6 +648,64 @@ function colorize(code, text) {
     return text;
   }
   return `${code}${text}\u001B[0m`;
+}
+
+function readCodexProviderMetadata(configDir, profile) {
+  const normalizedProfile = String(profile || '').trim();
+  const expandedDir = expandUserPath(configDir || path.join(os.homedir(), '.codex'));
+  const configPath = path.join(expandedDir, 'config.toml');
+  if (!normalizedProfile || !fs.existsSync(configPath)) {
+    return {
+      provider: null,
+      model: null,
+      envKey: null,
+      baseUrl: null,
+      wireApi: null,
+      requiresOpenAiAuth: null,
+    };
+  }
+  const text = fs.readFileSync(configPath, 'utf8');
+  const profileBlock = text.match(new RegExp(`\\[profiles\\.${normalizedProfile.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\]([\\s\\S]*?)(?:\\n\\[|$)`));
+  const provider = profileBlock?.[1]?.match(/^\s*model_provider\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || text.match(/^\s*model_provider\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || null;
+  const model = profileBlock?.[1]?.match(/^\s*model\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || text.match(/^\s*model\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || null;
+  if (!provider) {
+    return {
+      provider: null,
+      model,
+      envKey: null,
+      baseUrl: null,
+      wireApi: null,
+      requiresOpenAiAuth: null,
+    };
+  }
+  const providerBlock = text.match(new RegExp(`\\[model_providers\\.${provider.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\$&')}\\]([\\s\\S]*?)(?:\\n\\[|$)`));
+  const providerText = providerBlock?.[1] || '';
+  const envKey = providerText.match(/^\s*env_key\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || null;
+  const baseUrl = providerText.match(/^\s*base_url\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || null;
+  const wireApi = providerText.match(/^\s*wire_api\s*=\s*["']([^"']+)["']/m)?.[1]?.trim() || null;
+  const requiresOpenAiAuthRaw = providerText.match(/^\s*requires_openai_auth\s*=\s*(true|false)\s*$/m)?.[1] || null;
+  const requiresOpenAiAuth = requiresOpenAiAuthRaw === null ? null : requiresOpenAiAuthRaw === 'true';
+  return {
+    provider,
+    model,
+    envKey,
+    baseUrl,
+    wireApi,
+    requiresOpenAiAuth,
+  };
+}
+
+function installedCodexCliVersion(binaryPath) {
+  const resolved = resolveExecutableOnPath(binaryPath || 'codex') || binaryPath || 'codex';
+  try {
+    const result = spawnSync(resolved, ['--version'], syncSpawnOptions({ encoding: 'utf8' }));
+    if (result.status !== 0) {
+      return null;
+    }
+    return parseCodexCliVersion(`${result.stdout || ''}\n${result.stderr || ''}`);
+  } catch {
+    return null;
+  }
 }
 
 const OFFICIAL_REPOSITORY_URL = 'https://github.com/ResearAI/DeepScientist';
@@ -3569,6 +3654,75 @@ async function startBackgroundUpdateWorker(home, options = {}) {
   };
 }
 
+async function maybeHandleMiniMaxCodexVersion(home, runtimePython, options = {}) {
+  const configuredRunners = (() => {
+    try {
+      const result = runPythonCli(runtimePython, ['--home', home, 'config', 'show', 'runners'], {
+        capture: true,
+        allowFailure: true,
+      });
+      return String(result.stdout || '');
+    } catch {
+      return '';
+    }
+  })();
+  const profileFromConfig =
+    configuredRunners.match(/^\s*profile:\s*["']?([^"'\n]+)["']?\s*$/m)?.[1]?.trim() || '';
+  const binaryFromConfig =
+    configuredRunners.match(/^\s*binary:\s*["']?([^"'\n]+)["']?\s*$/m)?.[1]?.trim() || 'codex';
+  const configDirFromConfig =
+    configuredRunners.match(/^\s*config_dir:\s*["']?([^"'\n]+)["']?\s*$/m)?.[1]?.trim() || '~/.codex';
+
+  const effectiveProfile = String(options.codexProfile || profileFromConfig || '').trim();
+  if (!effectiveProfile) {
+    return false;
+  }
+  const metadata = readCodexProviderMetadata(configDirFromConfig, effectiveProfile);
+  if (String(metadata.provider || '').trim().toLowerCase() !== 'minimax') {
+    return false;
+  }
+  const version = installedCodexCliVersion(options.codexBinary || binaryFromConfig || 'codex');
+  const expected = [0, 57, 0];
+  if (!version || compareCodexCliVersion(version, expected) === 0) {
+    return false;
+  }
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    console.log(
+      `MiniMax profile \`${effectiveProfile}\` is configured, but installed Codex CLI is ${formatCodexCliVersion(version)}. MiniMax currently requires Codex CLI 0.57.0 for the documented path.`
+    );
+    console.log('Install it manually with `npm install -g @openai/codex@0.57.0` before continuing.');
+    return false;
+  }
+
+  console.log('');
+  console.log(colorize('\u001B[1;38;5;214m', 'MiniMax compatibility check'));
+  console.log(
+    `DeepScientist detected MiniMax profile \`${effectiveProfile}\`, but installed Codex CLI is ${formatCodexCliVersion(version)}.`
+  );
+  console.log('MiniMax currently requires Codex CLI 0.57.0 for the documented DeepScientist path.');
+  const confirmed = await promptYesNo('Reinstall Codex CLI to 0.57.0 now? [y/N]: ', {
+    defaultValue: false,
+  });
+  if (!confirmed) {
+    return false;
+  }
+  const npmBinary = resolveNpmBinary();
+  if (!npmBinary) {
+    console.error('`npm` is unavailable; cannot reinstall Codex CLI automatically.');
+    process.exit(1);
+  }
+  const result = spawnSync(
+    npmBinary,
+    ['install', '-g', '@openai/codex@0.57.0'],
+    syncSpawnOptions({ stdio: 'inherit' })
+  );
+  if (result.status !== 0) {
+    console.error('Failed to reinstall Codex CLI 0.57.0 automatically.');
+    process.exit(result.status ?? 1);
+  }
+  return true;
+}
+
 async function readConfiguredUiAddress(home, runtimePython, fallbackHost, fallbackPort) {
   try {
     const result = runPythonCli(runtimePython, ['--home', home, 'config', 'show', 'config'], { capture: true, allowFailure: true });
@@ -4105,6 +4259,7 @@ async function launcherMain(rawArgs) {
     binary: options.codexBinary,
   });
   ensureInitialized(home, runtimePython);
+  await maybeHandleMiniMaxCodexVersion(home, runtimePython, options);
   if (await maybeHandleStartupUpdate(home, rawArgs, options)) {
     return true;
   }
