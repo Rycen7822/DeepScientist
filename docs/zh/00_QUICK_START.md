@@ -204,6 +204,18 @@ ds --here
 
 它等价于 `ds --home "$PWD/DeepScientist"`。
 
+注意：
+
+  * 如果你是用 `ds --here` 或显式 `--home <path>` 启动的，后续的 `ds --status`、`ds --stop` 等管理命令，也应针对同一个 DeepScientist home 执行。
+  * 否则，CLI 可能会回到默认的 `~/DeepScientist`，从而出现“A DeepScientist daemon is reachable at http://127.0.0.1:20999, but there is no managed daemon state for /home/your_user_name/DeepScientist. Refusing to stop an unverified daemon.”之类的提示。
+
+例如，如果你是用非默认 home 启动的，可以显式这样执行：
+
+```bash
+ds --status --home /path/to/DeepScientist
+ds --stop --home /path/to/DeepScientist
+```
+
 如果你想换一个端口，可以运行：
 
 ```bash
@@ -424,12 +436,24 @@ https://arxiv.org/abs/2602.00428
 ds --status
 ```
 
+如果你启动时使用了非默认 home，也可以显式指定：
+
+```bash
+ds --status --home /path/to/DeepScientist
+```
+
 这会告诉你本地运行时是否正常在线。
 
 停止 daemon：
 
 ```bash
 ds --stop
+```
+
+如果你启动时使用了非默认 home，也可以显式指定：
+
+```bash
+ds --stop --home /path/to/DeepScientist
 ```
 
 这会停止当前本地 DeepScientist daemon。
