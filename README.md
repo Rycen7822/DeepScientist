@@ -4,7 +4,7 @@
 </h1>
 
 
-Unlike one-shot AI Scientist or autoresearch-style systems, DeepScientist is a local-first autonomous research studio that keeps the full loop moving on your machine, from baselines and experiment rounds to paper-ready outputs, with a 10-minute setup. Powered by Findings Memory, Bayesian optimization, and the Research Map, it keeps turning each new result into the next starting point and goes deep through broader exploration and, when needed, thousands of experiment validations.
+Unlike one-shot **AI Scientist** or **autoresearch-style systems**, DeepScientist is a **local-first autonomous research studio** that keeps the full loop moving on your machine, from **baselines** and **experiment rounds** to **paper-ready outputs**, with a **10-minute setup**. Powered by **Findings Memory**, **Bayesian optimization**, and the **Research Map**, it keeps turning each new result into the next starting point and goes deep through broader exploration and, when needed, **thousands of experiment validations**.
 
 
 
