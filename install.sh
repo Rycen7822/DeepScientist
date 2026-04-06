@@ -112,10 +112,6 @@ else
   INSTALL_DIR="$BASE_DIR/cli"
 fi
 
-if [ "$DIR_SET" -eq 1 ] && [ "$BIN_DIR_SET" -eq 0 ] && [ -z "$ENV_BIN_DIR" ]; then
-  BIN_DIR="$BASE_DIR/bin"
-fi
-
 print_step() {
   printf '[install] %s\n' "$1"
 }
@@ -475,6 +471,10 @@ printf 'Start web workspace: %s\n' "$BIN_DIR/ds --web"
 printf 'Default start: %s\n' "$BIN_DIR/ds"
 printf 'When `ds` starts, it prints the local Web URL and opens it automatically when supported.\n'
 printf 'If `uv` is missing, the first `ds` start will bootstrap a local copy automatically under the DeepScientist home.\n'
+if [ "$DIR_SET" -eq 1 ] && [ "$BIN_DIR_SET" -eq 0 ] && [ -z "$ENV_BIN_DIR" ]; then
+  printf 'Custom install dir detected; launcher wrappers were still refreshed in the default global bin dir: %s\n' "$BIN_DIR"
+  printf 'If you prefer install-local wrappers instead, rerun with: --bin-dir %s/bin\n' "$BASE_DIR"
+fi
 if [ "$WITH_TINYTEX" -eq 1 ]; then
   print_step "Installing TinyTeX pdflatex runtime"
   "$INSTALL_DIR/bin/ds" latex install-runtime

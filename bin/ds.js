@@ -2970,6 +2970,22 @@ function removeDaemonState(home) {
   }
 }
 
+function buildDaemonStatusPayload({ home, url, state, health, launcherPath = null }) {
+  const healthy = Boolean(health && health.status === 'ok');
+  const identityMatch = state ? healthMatchesManagedState({ health, state, home }) : false;
+  return {
+    healthy,
+    identity_match: identityMatch,
+    managed: Boolean(state),
+    home,
+    url,
+    daemon_state_path: daemonStatePath(home),
+    launcher_path: launcherPath || resolveLauncherPath() || null,
+    daemon: state,
+    health,
+  };
+}
+
 function daemonSupervisorLogPath(home) {
   return path.join(home, 'logs', 'daemon-supervisor.log');
 }
@@ -4638,9 +4654,13 @@ async function launcherMain(rawArgs) {
   const home = options.home || resolveHome(rawArgs);
   applyLauncherProxy(options.proxy);
   ensureDir(home);
+  const forceWrapperRepair =
+    detectInstallMode(repoRoot) !== 'npm-package'
+    && Boolean(options.home || process.env.DEEPSCIENTIST_HOME);
   repairLegacyPathWrappers({
     home,
     launcherPath: resolveLauncherPath(),
+    force: forceWrapperRepair,
   });
 
   if (options.stop) {
@@ -4655,24 +4675,17 @@ async function launcherMain(rawArgs) {
     const authToken = typeof state?.auth_token === 'string' ? state.auth_token.trim() : '';
     const probeUrl = state?.url || browserUiUrl(configured.host, configured.port);
     const health = await fetchHealth(probeUrl, authToken);
-    const healthy = Boolean(health && health.status === 'ok');
-    const identityMatch = state ? healthMatchesManagedState({ health, state, home }) : false;
+    const statusPayload = buildDaemonStatusPayload({
+      home,
+      url,
+      state,
+      health,
+      launcherPath: resolveLauncherPath(),
+    });
     console.log(
-      JSON.stringify(
-        {
-          healthy,
-          identity_match: identityMatch,
-          managed: Boolean(state),
-          home,
-          url,
-          daemon: state,
-          health,
-        },
-        null,
-        2
-      )
+      JSON.stringify(statusPayload, null, 2)
     );
-    process.exit(healthy && (!state || identityMatch) ? 0 : 1);
+    process.exit(statusPayload.healthy && (!state || statusPayload.identity_match) ? 0 : 1);
   }
 
   const pythonRuntime = ensurePythonRuntime(home);
@@ -4833,6 +4846,7 @@ module.exports = {
     buildUvSyncFailureGuidance,
     updateManualCommand,
     buildUpdateStatus,
+    buildDaemonStatusPayload,
     parseYesNoAnswer,
     normalizeLauncherRelaunchArgs,
     officialRepositoryLine,

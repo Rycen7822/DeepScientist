@@ -433,3 +433,37 @@ test('repairLegacyPathWrappers rewrites old install wrappers to the current npm 
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test('buildDaemonStatusPayload includes launcher and daemon state paths for diagnostics', () => {
+  const home = path.join(path.sep, 'tmp', 'DeepScientistHome');
+  const launcherPath = path.join(path.sep, 'tmp', 'bin', 'ds.js');
+  const state = {
+    daemon_id: 'daemon-123',
+    home,
+    auth_enabled: true,
+    auth_token: 'abcd1234',
+  };
+  const health = {
+    status: 'ok',
+    home,
+    daemon_id: 'daemon-123',
+  };
+
+  const payload = __internal.buildDaemonStatusPayload({
+    home,
+    url: 'http://127.0.0.1:20999',
+    state,
+    health,
+    launcherPath,
+  });
+
+  assert.equal(payload.healthy, true);
+  assert.equal(payload.identity_match, true);
+  assert.equal(payload.managed, true);
+  assert.equal(payload.home, home);
+  assert.equal(payload.url, 'http://127.0.0.1:20999');
+  assert.equal(payload.daemon_state_path, path.join(home, 'runtime', 'daemon.json'));
+  assert.equal(payload.launcher_path, launcherPath);
+  assert.equal(payload.daemon, state);
+  assert.equal(payload.health, health);
+});
