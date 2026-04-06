@@ -47,6 +47,7 @@
 
 如果你还在选择合适的 Coding Plan / 订阅方案，可以先看这些官方页面：
 
+- 如果你只是想先有一个简单直接的推荐起点，优先从 GPT-5.4 + `xhigh` reasoning effort 开始；如果你更偏向 Google 路线，可以使用 Gemini 3 Pro，对应模型名 `gemini-3-pro-preview`。
 - ChatGPT 定价：https://openai.com/chatgpt/pricing/
 - ChatGPT Plus 帮助页：https://help.openai.com/en/articles/6950777-what-is-chatgpt-plus%3F.eps
 - MiniMax Coding Plan：https://platform.minimaxi.com/docs/guides/pricing-codingplan
