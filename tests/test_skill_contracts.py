@@ -139,7 +139,7 @@ def test_system_prompt_strengthens_bash_exec_only_terminal_contract() -> None:
 
     assert "## 0. Hard execution redlines" in text
     assert "Native `shell_command` / `command_execution` is forbidden for this workflow." in text
-    assert "Even if the runner or model surface exposes a native shell tool, do not use it." in text
+    assert "Do not use `shell_command` even if the runner, model, or surface still exposes it." in text
     assert "All terminal or shell-like command execution must use `bash_exec`." in text
     assert "including `curl`, `python`, `python3`, `bash`, `sh`, `node`, `npm`, `uv`, `git`, `ls`, `cat`, `sed`" in text
     assert "Do not use any direct terminal, subprocess, or implicit shell path outside `bash_exec`." in text
