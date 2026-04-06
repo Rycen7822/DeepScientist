@@ -363,17 +363,18 @@ def test_config_save_reloads_system_connector_visibility(temp_home: Path) -> Non
     manager.ensure_files()
     app = DaemonApp(temp_home)
 
-    assert "telegram" not in {item["name"] for item in app.handlers.connectors()}
+    # discord is disabled by default in default_system_enabled_connectors()
+    assert "discord" not in {item["name"] for item in app.handlers.connectors()}
 
     structured = manager.load_named("config")
-    structured["connectors"]["system_enabled"]["telegram"] = True
+    structured["connectors"]["system_enabled"]["discord"] = True
 
     payload = app.handlers.config_save("config", {"structured": structured})
 
     assert payload["ok"] is True
     assert payload["runtime_reload"]["ok"] is True
-    assert "telegram" in payload["runtime_reload"]["system_enabled_connectors"]
-    assert "telegram" in {item["name"] for item in app.handlers.connectors()}
+    assert "discord" in payload["runtime_reload"]["system_enabled_connectors"]
+    assert "discord" in {item["name"] for item in app.handlers.connectors()}
 
 
 def test_structured_connector_test_passes_delivery_targets(monkeypatch, temp_home: Path) -> None:
