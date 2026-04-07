@@ -19,7 +19,7 @@
 </p>
 
 <p align="center">
-  <a href="https://openreview.net/forum?id=cZFgsLq8Gs"><img alt="ICLR 2026 Top 10 Badge" src="assets/readme/iclr2026_top10_badge.svg" height="35"></a>
+  <a href="https://openreview.net/forum?id=cZFgsLq8Gs"><img alt="ICLR 2026 Top 10 Badge" src="assets/readme/iclr2026_top10_badge.svg" height="44"></a>
 </p>
 
 <p align="center">
