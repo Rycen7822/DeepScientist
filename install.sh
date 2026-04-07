@@ -427,6 +427,47 @@ EOF
   chmod +x "$target_path"
 }
 
+record_install_index() {
+  node - "$BASE_DIR" "$INSTALL_DIR" "$BIN_DIR" <<'NODE'
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+
+const home = path.resolve(process.argv[2] || '');
+const installDir = path.resolve(process.argv[3] || '');
+const binDir = path.resolve(process.argv[4] || '');
+const indexPath = path.join(os.homedir(), '.deepscientist', 'install-index.json');
+const wrapperPaths = ['ds', 'ds-cli', 'research', 'resear'].map((name) => path.join(binDir, name));
+const entry = {
+  home,
+  install_mode: 'install-local',
+  install_dir: installDir,
+  package_root: installDir,
+  launcher_path: path.join(installDir, 'bin', 'ds.js'),
+  wrapper_paths: wrapperPaths,
+  updated_at: new Date().toISOString(),
+  created_at: new Date().toISOString(),
+};
+let installs = [];
+try {
+  const payload = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+  installs = Array.isArray(payload?.installs) ? payload.installs : [];
+} catch {}
+const sameEntry = (item) =>
+  String(item?.home || '') === home
+  && String(item?.install_dir || '') === installDir
+  && String(item?.install_mode || '') === 'install-local';
+const existing = installs.find((item) => sameEntry(item));
+if (existing && existing.created_at) {
+  entry.created_at = existing.created_at;
+}
+installs = installs.filter((item) => !sameEntry(item));
+installs.push(entry);
+fs.mkdirSync(path.dirname(indexPath), { recursive: true });
+fs.writeFileSync(indexPath, `${JSON.stringify({ installs }, null, 2)}\n`, 'utf8');
+NODE
+}
+
 require_command node
 require_command npm
 
@@ -462,6 +503,7 @@ write_global_wrapper "$BIN_DIR/ds" "ds"
 write_global_wrapper "$BIN_DIR/ds-cli" "ds-cli"
 write_global_wrapper "$BIN_DIR/research" "research"
 write_global_wrapper "$BIN_DIR/resear" "resear"
+record_install_index
 
 print_step "Install complete"
 printf 'Install dir: %s\n' "$INSTALL_DIR"

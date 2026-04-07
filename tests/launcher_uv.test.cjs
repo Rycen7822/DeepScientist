@@ -481,3 +481,81 @@ test('buildDaemonStatusPayload includes launcher and daemon state paths for diag
   assert.equal(payload.daemon, state);
   assert.equal(payload.health, health);
 });
+
+test('buildCodeOnlyUninstallPlan removes runtime code but preserves local data', () => {
+  const home = path.join(path.sep, 'tmp', 'DeepScientistHome');
+  const installDir = path.join(home, 'cli');
+  const wrapperPath = path.join(path.sep, 'tmp', 'bin', 'ds');
+
+  const plan = __internal.buildCodeOnlyUninstallPlan({
+    home,
+    installDir,
+    wrapperPaths: [wrapperPath],
+  });
+
+  assert.deepEqual(plan.wrapper_paths, [wrapperPath]);
+  assert.deepEqual(
+    plan.remove_paths,
+    [
+      path.join(home, 'cli'),
+      path.join(home, 'runtime', 'bundle'),
+      path.join(home, 'runtime', 'daemon.json'),
+      path.join(home, 'runtime', 'python'),
+      path.join(home, 'runtime', 'python-env'),
+      path.join(home, 'runtime', 'tools'),
+    ]
+  );
+  assert.deepEqual(
+    plan.preserve_paths,
+    [
+      path.join(home, 'cache'),
+      path.join(home, 'config'),
+      path.join(home, 'logs'),
+      path.join(home, 'memory'),
+      path.join(home, 'plugins'),
+      path.join(home, 'quests'),
+    ]
+  );
+});
+
+test('runGlobalNpmUninstall respects npm_config_prefix for npm-package installs', () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ds-uninstall-prefix-'));
+  const binDir = path.join(tempDir, 'bin');
+  fs.mkdirSync(binDir, { recursive: true });
+  const npmStub = path.join(binDir, process.platform === 'win32' ? 'npm.cmd' : 'npm');
+  const capturePath = path.join(tempDir, 'capture.json');
+  if (process.platform === 'win32') {
+    fs.writeFileSync(
+      npmStub,
+      `@echo off\r\nnode -e "require('node:fs').writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))" "${capturePath}" %*\r\nexit /b 0\r\n`,
+      { encoding: 'utf8', mode: 0o755 }
+    );
+  } else {
+    fs.writeFileSync(
+      npmStub,
+      [
+        '#!/usr/bin/env bash',
+        'set -euo pipefail',
+        `node -e 'require(\"node:fs\").writeFileSync(process.argv[1], JSON.stringify(process.argv.slice(2)))' "${capturePath}" "$@"`,
+        '',
+      ].join('\n'),
+      { encoding: 'utf8', mode: 0o755 }
+    );
+  }
+  const originalPath = process.env.PATH;
+  const originalPrefix = process.env.npm_config_prefix;
+  process.env.PATH = `${binDir}${path.delimiter}${originalPath || ''}`;
+  process.env.npm_config_prefix = '/tmp/custom-prefix';
+  try {
+    const result = __internal.runGlobalNpmUninstall();
+    assert.equal(result.ok, true);
+    const args = JSON.parse(fs.readFileSync(capturePath, 'utf8'));
+    assert.deepEqual(args, ['uninstall', '-g', '@researai/deepscientist', '--prefix', '/tmp/custom-prefix']);
+  } finally {
+    if (typeof originalPath === 'string') process.env.PATH = originalPath;
+    else delete process.env.PATH;
+    if (typeof originalPrefix === 'string') process.env.npm_config_prefix = originalPrefix;
+    else delete process.env.npm_config_prefix;
+    fs.rmSync(tempDir, { recursive: true, force: true });
+  }
+});

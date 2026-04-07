@@ -456,6 +456,39 @@ ds --stop --home /path/to/DeepScientist
 
 This stops the local DeepScientist daemon.
 
+Uninstall code and runtime, but keep local data:
+
+```bash
+ds uninstall
+```
+
+If you started DeepScientist with a non-default home, specify it explicitly:
+
+```bash
+ds uninstall --home /path/to/DeepScientist --yes
+```
+
+This removes launcher wrappers, local runtime code, and install-local code trees, but preserves:
+
+- `quests/`
+- `memory/`
+- `config/`
+- `logs/`
+- `plugins/`
+- `cache/`
+
+If you installed DeepScientist from npm and also want to remove the global npm package itself, run this after `ds uninstall`:
+
+```bash
+npm uninstall -g @researai/deepscientist
+```
+
+If you really want to delete local data too, remove the DeepScientist home manually after uninstall:
+
+```bash
+rm -rf /path/to/DeepScientist
+```
+
 Run diagnostics:
 
 ```bash

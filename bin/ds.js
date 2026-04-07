@@ -139,6 +139,7 @@ Usage:
   ds update
   ds update --check
   ds update --yes
+  ds uninstall
   ds migrate /data/DeepScientist
   ds --here
   ds --yolo --port 20999 --here
@@ -181,6 +182,9 @@ Update:
 Migration:
   ds migrate <target>   Move the DeepScientist home/install root to a new absolute path
   ds migrate <target> --yes --restart
+
+Uninstall:
+  ds uninstall          Remove code/runtime only and preserve local data
 
 Runtime:
   DeepScientist uses uv to manage a locked local Python runtime.
@@ -1381,6 +1385,26 @@ Flags:
 `);
 }
 
+function printUninstallHelp() {
+  console.log(`DeepScientist uninstall
+
+Usage:
+  ds uninstall
+  ds uninstall --home /absolute/home/path
+  ds uninstall --yes
+
+Behavior:
+  - removes DeepScientist code, launcher wrappers, and local runtime code
+  - preserves local data such as quests, memory, config, logs, plugins, and cache
+  - if this command is run from the globally installed npm package, it also removes the npm package itself
+
+Flags:
+  --yes              Skip the interactive confirmation prompt
+  --home <path>      Override the target DeepScientist home/root
+  --origin <value>   Internal use for npm uninstall integration
+`);
+}
+
 function parseUpdateArgs(argv) {
   const args = [...argv];
   if (args[0] === 'update') {
@@ -1500,6 +1524,43 @@ function parseMigrateArgs(argv) {
     target,
     yes,
     restart,
+    error: null,
+  };
+}
+
+function parseUninstallArgs(argv) {
+  const args = [...argv];
+  if (args[0] === 'uninstall') {
+    args.shift();
+  }
+  let home = null;
+  let yes = false;
+  let origin = null;
+
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === '--yes') yes = true;
+    else if (arg === '--home') {
+      const next = readRequiredOptionValue(args, index, '--home');
+      if (!next.ok) return { help: false, error: next.error };
+      home = path.resolve(expandUserPath(next.value));
+      index += 1;
+    } else if (arg === '--origin') {
+      const next = readRequiredOptionValue(args, index, '--origin');
+      if (!next.ok) return { help: false, error: next.error };
+      origin = String(next.value || '').trim().toLowerCase() || null;
+      index += 1;
+    }
+    else if (arg === '--help' || arg === '-h') return { help: true };
+    else if (arg.startsWith('--')) return { help: false, error: `Unknown uninstall flag: ${arg}` };
+    else return { help: false, error: `Unexpected uninstall argument: ${arg}` };
+  }
+
+  return {
+    help: false,
+    home,
+    yes,
+    origin,
     error: null,
   };
 }
@@ -2987,6 +3048,358 @@ function removeDaemonState(home) {
   }
 }
 
+function installIndexPath() {
+  return path.join(os.homedir(), '.deepscientist', 'install-index.json');
+}
+
+function readInstallIndex() {
+  const indexPath = installIndexPath();
+  if (!fs.existsSync(indexPath)) {
+    return { installs: [] };
+  }
+  try {
+    const payload = JSON.parse(fs.readFileSync(indexPath, 'utf8'));
+    const installs = Array.isArray(payload?.installs) ? payload.installs.filter((item) => item && typeof item === 'object') : [];
+    return { installs };
+  } catch {
+    return { installs: [] };
+  }
+}
+
+function writeInstallIndex(payload) {
+  const normalized = {
+    installs: Array.isArray(payload?.installs) ? payload.installs : [],
+  };
+  const targetPath = installIndexPath();
+  ensureDir(path.dirname(targetPath));
+  fs.writeFileSync(targetPath, `${JSON.stringify(normalized, null, 2)}\n`, 'utf8');
+}
+
+function normalizeInstallRecord(record) {
+  const normalizedHome = normalizeHomePath(record?.home || '');
+  if (!normalizedHome) {
+    return null;
+  }
+  const installMode = String(record?.install_mode || '').trim() || null;
+  const installDir = record?.install_dir ? normalizeHomePath(record.install_dir) : null;
+  const packageRoot = record?.package_root ? normalizeHomePath(record.package_root) : null;
+  const launcherPath = record?.launcher_path ? path.resolve(String(record.launcher_path)) : null;
+  const wrapperPaths = Array.isArray(record?.wrapper_paths)
+    ? [...new Set(record.wrapper_paths.map((item) => String(item || '').trim()).filter(Boolean).map((item) => path.resolve(item)))]
+    : [];
+  const createdAt = String(record?.created_at || '').trim() || new Date().toISOString();
+  return {
+    home: normalizedHome,
+    install_mode: installMode,
+    install_dir: installDir,
+    package_root: packageRoot,
+    launcher_path: launcherPath,
+    wrapper_paths: wrapperPaths,
+    created_at: createdAt,
+    updated_at: new Date().toISOString(),
+  };
+}
+
+function installRecordMatches(left, right) {
+  return left.home === right.home
+    && (left.install_dir || null) === (right.install_dir || null)
+    && (left.package_root || null) === (right.package_root || null)
+    && (left.install_mode || null) === (right.install_mode || null);
+}
+
+function upsertInstallRecord(record) {
+  const normalized = normalizeInstallRecord(record);
+  if (!normalized) {
+    return null;
+  }
+  const index = readInstallIndex();
+  const installs = index.installs
+    .map((item) => normalizeInstallRecord(item))
+    .filter(Boolean);
+  const nextInstalls = installs.filter((item) => !installRecordMatches(item, normalized));
+  nextInstalls.push(normalized);
+  nextInstalls.sort((left, right) => String(left.updated_at || '').localeCompare(String(right.updated_at || '')));
+  writeInstallIndex({ installs: nextInstalls });
+  return normalized;
+}
+
+function removeInstallRecords(predicate) {
+  const index = readInstallIndex();
+  const installs = index.installs
+    .map((item) => normalizeInstallRecord(item))
+    .filter(Boolean);
+  const nextInstalls = installs.filter((item) => !predicate(item));
+  writeInstallIndex({ installs: nextInstalls });
+  return nextInstalls;
+}
+
+function parseManagedWrapperCandidate(candidatePath) {
+  let stat = null;
+  try {
+    stat = fs.lstatSync(candidatePath);
+  } catch {
+    return null;
+  }
+
+  if (!stat.isFile() && !stat.isSymbolicLink()) {
+    return null;
+  }
+
+  let text = '';
+  try {
+    text = fs.readFileSync(candidatePath, 'utf8');
+  } catch {
+    return null;
+  }
+
+  const homeMatch = text.match(/export DEEPSCIENTIST_HOME="([^"\n]+)"/);
+  const execMatch = text.match(/exec "([^"\n]+)" "\$@"/);
+  return {
+    path: path.resolve(candidatePath),
+    home: homeMatch ? normalizeHomePath(homeMatch[1]) : null,
+    execPath: execMatch ? path.resolve(execMatch[1]) : null,
+  };
+}
+
+function collectManagedWrapperPaths({ home, installDir = null, explicitWrapperPaths = [] }) {
+  const normalizedHome = normalizeHomePath(home);
+  const normalizedInstallDir = installDir ? normalizeHomePath(installDir) : null;
+  const candidates = new Set(explicitWrapperPaths.map((item) => path.resolve(String(item))));
+  for (const commandName of launcherWrapperCommands) {
+    for (const candidate of candidateWrapperPathsForCommand(commandName)) {
+      candidates.add(candidate);
+    }
+  }
+  const matched = [];
+  for (const candidate of candidates) {
+    const parsed = parseManagedWrapperCandidate(candidate);
+    if (!parsed) {
+      continue;
+    }
+    if (parsed.home && parsed.home === normalizedHome) {
+      matched.push(parsed.path);
+      continue;
+    }
+    if (normalizedInstallDir && parsed.execPath && parsed.execPath.startsWith(path.join(normalizedInstallDir, 'bin'))) {
+      matched.push(parsed.path);
+    }
+  }
+  return [...new Set(matched)].sort();
+}
+
+function buildCodeOnlyUninstallPlan({ home, installDir = null, wrapperPaths = [] }) {
+  const normalizedHome = normalizeHomePath(home);
+  const normalizedInstallDir = installDir ? normalizeHomePath(installDir) : null;
+  const removePaths = [
+    path.join(normalizedHome, 'runtime', 'python-env'),
+    path.join(normalizedHome, 'runtime', 'python'),
+    path.join(normalizedHome, 'runtime', 'tools'),
+    path.join(normalizedHome, 'runtime', 'bundle'),
+    path.join(normalizedHome, 'runtime', 'daemon.json'),
+  ];
+  if (normalizedInstallDir && normalizedInstallDir !== normalizeHomePath(repoRoot)) {
+    removePaths.push(normalizedInstallDir);
+  }
+  return {
+    remove_paths: [...new Set(removePaths.map((item) => path.resolve(item)))].sort(),
+    preserve_paths: [
+      path.join(normalizedHome, 'quests'),
+      path.join(normalizedHome, 'memory'),
+      path.join(normalizedHome, 'config'),
+      path.join(normalizedHome, 'logs'),
+      path.join(normalizedHome, 'plugins'),
+      path.join(normalizedHome, 'cache'),
+    ].sort(),
+    wrapper_paths: [...new Set(wrapperPaths.map((item) => path.resolve(item)))].sort(),
+  };
+}
+
+function removePathEntry(targetPath) {
+  if (!targetPath || !fs.existsSync(targetPath)) {
+    return false;
+  }
+  const stat = fs.lstatSync(targetPath);
+  if (stat.isDirectory() && !stat.isSymbolicLink()) {
+    fs.rmSync(targetPath, { recursive: true, force: true });
+    return true;
+  }
+  fs.rmSync(targetPath, { force: true });
+  return true;
+}
+
+function currentInstallRecord(home) {
+  const installMode = detectInstallMode(repoRoot);
+  return normalizeInstallRecord({
+    home,
+    install_mode: installMode,
+    install_dir: installMode === 'source-checkout' ? null : null,
+    package_root: normalizeHomePath(repoRoot),
+    launcher_path: resolveLauncherPath() || path.join(repoRoot, 'bin', 'ds.js'),
+    wrapper_paths: [],
+  });
+}
+
+function registerCurrentInstall(home) {
+  const record = currentInstallRecord(home);
+  if (!record) {
+    return null;
+  }
+  return upsertInstallRecord(record);
+}
+
+function dedupeUninstallRecords(records) {
+  const seen = new Set();
+  const deduped = [];
+  for (const record of records) {
+    const normalized = normalizeInstallRecord(record);
+    if (!normalized) {
+      continue;
+    }
+    const key = JSON.stringify([
+      normalized.home,
+      normalized.install_mode || null,
+      normalized.install_dir || null,
+      normalized.package_root || null,
+    ]);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(normalized);
+  }
+  return deduped;
+}
+
+function resolveUninstallRecords({ home, origin }) {
+  const normalizedHome = normalizeHomePath(home);
+  const currentPackageRoot = normalizeHomePath(repoRoot);
+  const index = readInstallIndex();
+  const installs = index.installs.map((item) => normalizeInstallRecord(item)).filter(Boolean);
+  if (origin === 'npm') {
+    const matching = installs.filter((item) => item.package_root === currentPackageRoot);
+    if (matching.length > 0) {
+      return dedupeUninstallRecords(matching);
+    }
+    return dedupeUninstallRecords([currentInstallRecord(normalizedHome)]);
+  }
+  const matching = installs.filter((item) => item.home === normalizedHome);
+  if (matching.length > 0) {
+    return dedupeUninstallRecords(matching);
+  }
+  const inferredInstallDir = fs.existsSync(path.join(normalizedHome, 'cli')) ? path.join(normalizedHome, 'cli') : null;
+  return dedupeUninstallRecords([
+    {
+      ...currentInstallRecord(normalizedHome),
+      install_dir: inferredInstallDir,
+    },
+  ]);
+}
+
+function aggregateCodeOnlyUninstallPlan(records) {
+  const removePaths = new Set();
+  const preservePaths = new Set();
+  const wrapperPaths = new Set();
+  for (const record of records) {
+    const installDir = record.install_dir || (fs.existsSync(path.join(record.home, 'cli')) ? path.join(record.home, 'cli') : null);
+    const matchedWrappers = collectManagedWrapperPaths({
+      home: record.home,
+      installDir,
+      explicitWrapperPaths: record.wrapper_paths || [],
+    });
+    const plan = buildCodeOnlyUninstallPlan({
+      home: record.home,
+      installDir,
+      wrapperPaths: matchedWrappers,
+    });
+    for (const targetPath of plan.remove_paths) removePaths.add(targetPath);
+    for (const targetPath of plan.preserve_paths) preservePaths.add(targetPath);
+    for (const targetPath of plan.wrapper_paths) wrapperPaths.add(targetPath);
+  }
+  return {
+    remove_paths: [...removePaths].sort(),
+    preserve_paths: [...preservePaths].sort(),
+    wrapper_paths: [...wrapperPaths].sort(),
+  };
+}
+
+async function promptUninstallConfirmation({ records, plan }) {
+  if (!process.stdin.isTTY || !process.stdout.isTTY) {
+    throw new Error('DeepScientist uninstall needs a TTY for confirmation. Re-run with `--yes` to continue non-interactively.');
+  }
+  console.log('');
+  console.log('DeepScientist uninstall');
+  console.log('');
+  console.log('This removes code and runtime directories, but preserves local data.');
+  console.log('');
+  for (const record of records) {
+    console.log(`Home: ${record.home}`);
+  }
+  console.log('');
+  console.log('Code/runtime paths to remove:');
+  for (const targetPath of plan.remove_paths) {
+    console.log(`- ${targetPath}`);
+  }
+  console.log('');
+  console.log('Preserved data paths:');
+  for (const targetPath of plan.preserve_paths) {
+    console.log(`- ${targetPath}`);
+  }
+  const answer = await new Promise((resolve) => {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    rl.question('Type UNINSTALL to continue: ', (value) => {
+      rl.close();
+      resolve(String(value || '').trim());
+    });
+  });
+  return answer === 'UNINSTALL';
+}
+
+function runGlobalNpmUninstall() {
+  const configuredPrefix = String(process.env.npm_config_prefix || process.env.NPM_CONFIG_PREFIX || '').trim();
+  let uninstallPrefix = configuredPrefix || null;
+  if (!uninstallPrefix && detectInstallMode(repoRoot) === 'npm-package') {
+    let cursor = path.resolve(repoRoot);
+    while (cursor && cursor !== path.dirname(cursor)) {
+      if (path.basename(cursor) === 'node_modules') {
+        const container = path.dirname(cursor);
+        uninstallPrefix =
+          path.basename(container) === 'lib'
+            ? path.dirname(container)
+            : container;
+        break;
+      }
+      cursor = path.dirname(cursor);
+    }
+  }
+  const npmBinary =
+    resolveExecutableOnPath(process.platform === 'win32' ? 'npm.cmd' : 'npm')
+    || resolveExecutableOnPath('npm');
+  if (!npmBinary) {
+    return {
+      ok: false,
+      message: 'Global npm package removal was skipped because `npm` is not available on PATH.',
+    };
+  }
+  const result = spawnSync(
+    npmBinary,
+    ['uninstall', '-g', UPDATE_PACKAGE_NAME, ...(uninstallPrefix ? ['--prefix', uninstallPrefix] : [])],
+    syncSpawnOptions({
+      stdio: 'inherit',
+      env: process.env,
+    })
+  );
+  if (result.error) {
+    return {
+      ok: false,
+      message: result.error.message,
+    };
+  }
+  return {
+    ok: result.status === 0,
+    message: result.status === 0 ? null : `npm uninstall exited with status ${result.status ?? 1}.`,
+  };
+}
+
 function buildDaemonStatusPayload({ home, url, state, health, launcherPath = null }) {
   const healthy = Boolean(health && health.status === 'ok');
   const identityMatch = state ? healthMatchesManagedState({ health, state, home }) : false;
@@ -3571,6 +3984,86 @@ async function stopDaemon(home) {
 
   removeDaemonState(home);
   console.log('DeepScientist daemon stopped.');
+}
+
+async function uninstallMain(rawArgs) {
+  const options = parseUninstallArgs(rawArgs);
+  if (options.help) {
+    printUninstallHelp();
+    process.exit(0);
+  }
+  if (options.error) {
+    console.error(options.error);
+    console.error('Run `ds uninstall --help` for usage.');
+    process.exit(1);
+  }
+
+  const home = normalizeHomePath(options.home || resolveHome(rawArgs));
+  const records = resolveUninstallRecords({ home, origin: options.origin });
+  const plan = aggregateCodeOnlyUninstallPlan(records);
+
+  if (!options.yes && options.origin !== 'npm') {
+    const confirmed = await promptUninstallConfirmation({ records, plan });
+    if (!confirmed) {
+      console.log('DeepScientist uninstall cancelled.');
+      process.exit(1);
+    }
+  }
+
+  for (const record of records) {
+    try {
+      await stopDaemon(record.home);
+    } catch (error) {
+      console.warn(`DeepScientist could not fully stop the daemon for ${record.home}: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }
+
+  const removed = [];
+  for (const targetPath of plan.remove_paths) {
+    if (removePathEntry(targetPath)) {
+      removed.push(targetPath);
+    }
+  }
+  for (const targetPath of plan.wrapper_paths) {
+    if (removePathEntry(targetPath)) {
+      removed.push(targetPath);
+    }
+  }
+
+  removeInstallRecords((record) => records.some((candidate) => installRecordMatches(candidate, record)));
+
+  let npmRemovalMessage = null;
+  if (options.origin !== 'npm' && detectInstallMode(repoRoot) === 'npm-package') {
+    const npmRemoval = runGlobalNpmUninstall();
+    if (!npmRemoval.ok) {
+      npmRemovalMessage = npmRemoval.message;
+    }
+  }
+
+  console.log('');
+  console.log('DeepScientist code uninstall completed.');
+  if (removed.length > 0) {
+    console.log('');
+    console.log('Removed:');
+    for (const targetPath of removed) {
+      console.log(`- ${targetPath}`);
+    }
+  }
+  console.log('');
+  console.log('Preserved local data:');
+  for (const targetPath of plan.preserve_paths) {
+    console.log(`- ${targetPath}`);
+  }
+  console.log('');
+  for (const record of records) {
+    console.log(`If you also want to delete local data manually: rm -rf ${record.home}`);
+  }
+  if (npmRemovalMessage) {
+    console.log('');
+    console.warn(`Global npm package removal did not complete automatically: ${npmRemovalMessage}`);
+    console.warn(`Run: npm uninstall -g ${UPDATE_PACKAGE_NAME}`);
+  }
+  process.exit(0);
 }
 
 function writeUpdateLog(home, content) {
@@ -4671,6 +5164,7 @@ async function launcherMain(rawArgs) {
   const home = options.home || resolveHome(rawArgs);
   applyLauncherProxy(options.proxy);
   ensureDir(home);
+  registerCurrentInstall(home);
   const forceWrapperRepair =
     detectInstallMode(repoRoot) !== 'npm-package'
     && Boolean(options.home || process.env.DEEPSCIENTIST_HOME);
@@ -4791,6 +5285,10 @@ async function main() {
     await migrateMain(args);
     return;
   }
+  if (positional && positional.value === 'uninstall') {
+    await uninstallMain(args);
+    return;
+  }
   if (
     args.length === 0
     || args[0] === 'ui'
@@ -4854,6 +5352,7 @@ module.exports = {
     generateBrowserAuthToken,
     appendBrowserAuthToken,
     normalizeProxyUrl,
+    buildCodeOnlyUninstallPlan,
     parseMigrateArgs,
     parseLegacyWrapperCandidate,
     repairLegacyPathWrappers,
@@ -4869,6 +5368,7 @@ module.exports = {
     officialRepositoryLine,
     stripAnsi,
     normalizeLegacyHostFlagArgs,
+    runGlobalNpmUninstall,
   },
 };
 

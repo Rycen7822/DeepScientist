@@ -448,6 +448,39 @@ ds --stop
 
 这会停止当前本地 DeepScientist daemon。
 
+卸载代码和运行时，但保留本地数据：
+
+```bash
+ds uninstall
+```
+
+如果你使用的是非默认 home，可以显式指定：
+
+```bash
+ds uninstall --home /path/to/DeepScientist --yes
+```
+
+这会删除 launcher wrapper、本地运行时代码，以及 install-local 安装树，但会保留：
+
+- `quests/`
+- `memory/`
+- `config/`
+- `logs/`
+- `plugins/`
+- `cache/`
+
+如果你是通过 npm 安装的，并且还想把全局 npm 包本体一起移除，请在 `ds uninstall` 之后再执行：
+
+```bash
+npm uninstall -g @researai/deepscientist
+```
+
+如果你真的想把本地数据一起删掉，请在卸载后手动删除 DeepScientist home：
+
+```bash
+rm -rf /path/to/DeepScientist
+```
+
 运行诊断：
 
 ```bash
