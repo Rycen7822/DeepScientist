@@ -1,5 +1,5 @@
-<h1 align="center">
-  <img src="assets/branding/logo.svg" alt="DeepScientist logo" width="92" />
+<h1 align="center" style="font-size: 3.25rem; line-height: 1.02; margin-bottom: 0.4rem;">
+  <img src="assets/branding/logo.svg" alt="DeepScientist logo" width="76" />
   DeepScientist
 </h1>
 
@@ -17,7 +17,7 @@
   <a href="https://openreview.net/forum?id=cZFgsLq8Gs"><img alt="ICLR 2026" src="https://img.shields.io/badge/ICLR-2026-blue?style=for-the-badge&logo=openreview"></a>
   <a href="LICENSE"><img alt="License Apache-2.0" src="https://img.shields.io/badge/License-Apache%202.0-yellow.svg?style=for-the-badge"></a>
   <a href="https://www.python.org/"><img alt="Python 3.11+" src="https://img.shields.io/badge/Python-3.11%2B-blue?style=for-the-badge&logo=python&logoColor=white"></a>
-  <a href="https://www.npmjs.com/package/@researai/deepscientist"><img alt="npm @researai/deepscientist" src="https://img.shields.io/badge/npm-%40researai%2Fdeepscientist-CB3837?style=for-the-badge&logo=npm&logoColor=white"></a>
+  <a href="https://openreview.net/forum?id=cZFgsLq8Gs"><img alt="ICLR 2026 Top 10 Badge" src="assets/readme/iclr2026_top10_badge.svg"></a>
 </p>
 
 <p align="center">
@@ -397,7 +397,7 @@ If this feels like the research workflow you have been waiting for, give the pro
 Welcome to join the WeChat group for discussion.
 
 <p align="center">
-  <img src="assets/readme/wechat4.jpg" alt="DeepScientist WeChat group" width="360" />
+  <img src="assets/readme/wechat5.jpg" alt="DeepScientist WeChat group" width="360" />
 </p>
 
 ## More From ResearAI
