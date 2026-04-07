@@ -411,3 +411,41 @@ If you like DeepScientist, you may also want to explore the rest of the ResearAI
 | [AutoFigure-Edit](https://github.com/ResearAI/AutoFigure-Edit) | generate editable vector paper figures | ![GitHub stars](https://img.shields.io/github/stars/ResearAI/AutoFigure-Edit?style=flat&logo=github) |
 | [DeepReviewer-v2](https://github.com/ResearAI/DeepReviewer-v2) | review papers and suggest revisions | ![GitHub stars](https://img.shields.io/github/stars/ResearAI/DeepReviewer-v2?style=flat&logo=github) |
 | [Awesome-AI-Scientist](https://github.com/ResearAI/Awesome-AI-Scientist) | curated AI scientist landscape | ![GitHub stars](https://img.shields.io/github/stars/ResearAI/Awesome-AI-Scientist?style=flat&logo=github) |
+
+## Roadmap
+
+We are building DeepScientist as a long-term local-first research operating system.
+
+The next major upgrades focus on four directions:
+
+### 1. Deeper Research Loops
+
+- AI Scientist Benchmark support for more realistic evaluation and comparison
+- smoother automatic baseline upload, download, and reuse
+- stronger experiment replay, comparison, and paper-facing outputs
+
+### 2. Stronger Long-Horizon Memory
+
+- stronger Memory and Findings Memory mechanisms
+- better cross-run and cross-quest reuse
+- less repeated failure and less rediscovery cost over long projects
+
+### 3. Richer Multimodal And Collaborative Workflows
+
+- VideoAnything-style multimodal research capabilities
+- better local-model, connector, and copilot/autonomous collaboration flows
+- a more efficient and more reliable DeepScientist system across local, collaborative, and long-horizon research settings
+
+### 4. Stronger Security And Safer Deployment
+
+- safer local-first and server-side deployment defaults
+- stronger auth, permission, and connector-surface protection
+- less fabrication, lower hallucination, and more verification-grounded outputs
+- better auditability for long-running autonomous research workflows
+
+If this direction is interesting to you, please give the project a `Watch` and a `Star`:
+
+[![Watch DeepScientist](https://img.shields.io/github/watchers/ResearAI/DeepScientist?style=for-the-badge&logo=github&label=Watch%20DeepScientist)](https://github.com/ResearAI/DeepScientist/watchers)
+[![Star DeepScientist](https://img.shields.io/github/stars/ResearAI/DeepScientist?style=for-the-badge&logo=github&label=Star%20DeepScientist)](https://github.com/ResearAI/DeepScientist/stargazers)
+
+This project is maintained by WestlakeNLP. If you run into problems, please ask on [DeepWiki](https://deepwiki.com/ResearAI/DeepScientist) first; if it still cannot be resolved, open an issue. WestlakeNLP is led by ACL Fellow Professor Yue Zhang. If you are interested in a long-term internship, PhD position, or research assistant opportunity, contact Professor Yue Zhang at `zhangyue@westlake.edu.cn`.

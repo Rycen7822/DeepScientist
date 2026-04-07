@@ -411,3 +411,41 @@ url={https://openreview.net/forum?id=cZFgsLq8Gs}
 <p align="center">
   <img src="assets/readme/wechat4.jpg" alt="DeepScientist WeChat group" width="360" />
 </p>
+
+## 路线图
+
+我们正在把 DeepScientist 持续建设成一个长期维护的、本地优先的科研操作系统。
+
+下一阶段会重点围绕四条主线推进：
+
+### 1. 更深的科研闭环
+
+- AI Scientist Benchmark，支持更真实、更系统的评测与比较
+- 更顺滑的 baseline 自动上传、下载与复用
+- 更强的实验回放、对比与论文输出能力
+
+### 2. 更强的长程记忆
+
+- 更强的 Memory 与 Findings Memory 机制
+- 更好的跨运行、跨 quest 复用
+- 在长时间项目里进一步减少重复试错和重复探索成本
+
+### 3. 更丰富的多模态与协作工作流
+
+- VideoAnything 一类多模态科研能力
+- 更好的本地模型、connector，以及协作模式 / 全自动模式协同体验
+- 在本地运行、多人协作、长时间自主推进等场景下，持续打磨一个更高效、更可靠的 DeepScientist 系统
+
+### 4. 更强的安全性与更稳妥的部署
+
+- 更安全的本地优先与服务器部署默认配置
+- 更强的认证、权限控制与 connector 协作面保护
+- 更少伪造、更低幻觉，以及更强的可验证输出能力
+- 为长时间自主科研工作流提供更好的可审计性
+
+如果你对这个方向感兴趣，欢迎点一个 `Watch` 和 `Star`：
+
+[![Watch DeepScientist](https://img.shields.io/github/watchers/ResearAI/DeepScientist?style=for-the-badge&logo=github&label=Watch%20DeepScientist)](https://github.com/ResearAI/DeepScientist/watchers)
+[![Star DeepScientist](https://img.shields.io/github/stars/ResearAI/DeepScientist?style=for-the-badge&logo=github&label=Star%20DeepScientist)](https://github.com/ResearAI/DeepScientist/stargazers)
+
+本项目由 WestlakeNLP 负责维护。如有问题，建议优先在 [DeepWiki](https://deepwiki.com/ResearAI/DeepScientist) 询问；如果仍无法解决，再通过 issue 汇报。WestlakeNLP 由 ACL Fellow 张岳教授领导。有意申请长期实习、博士生、研究助理者，可联系张岳教授邮箱：`zhangyue@westlake.edu.cn`。
