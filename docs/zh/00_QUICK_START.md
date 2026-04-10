@@ -271,7 +271,7 @@ ds --port 21000
 - 复现官方的 Mandela-Effect baseline
 - 保持原论文的任务定义与评测协议
 - 研究在混合正确 / 错误社会信号下，如何实现更强的 truth-preserving collaboration
-- 使用两个本地推理端点提高吞吐量
+- 在这个参考示例里，使用两个本地推理端点提高吞吐量
 
 点击 `Start Research` / `Start Experiment`，然后选择 `Autonomous Mode`，再进入下面这条标准创建流程。
 
@@ -333,12 +333,14 @@ https://arxiv.org/abs/2602.00428
 
 把下面内容粘贴到 `Runtime constraints`：
 
+下面这段只是教程参考，不是 DeepScientist 的默认端点配置。粘贴前请把端点、API key 和模型名替换成你自己的真实运行时。
+
 ```text
 - Keep the task definition and evaluation protocol aligned with the official baseline unless a change is explicitly justified.
-- Use two OpenAI-compatible local inference endpoints for throughput:
-  - `http://127.0.0.1:8004/v1`
-  - `http://127.0.0.1:8008/v1`
-- Use API key `1234` and model `/model/gpt-oss-120b` on both endpoints.
+- Use two OpenAI-compatible inference endpoints for throughput:
+  - `http://127.0.0.1:<port-a>/v1`
+  - `http://127.0.0.1:<port-b>/v1`
+- Use your actual API key `<YOUR_API_KEY>` and model `<YOUR_MODEL>` on both endpoints.
 - Keep generation settings close to the baseline unless a justified adjustment is required.
 - Implement asynchronous execution, automatic retry on request failure, and resumable scripts.
 - Split requests across both endpoints so throughput stays high without overloading the service.

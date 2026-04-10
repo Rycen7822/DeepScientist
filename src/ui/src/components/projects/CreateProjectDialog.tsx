@@ -68,7 +68,8 @@ const copy = {
     restore: 'Restore form editing',
     template: 'Saved startup template',
     newTemplate: 'New blank form',
-    templateHint: 'Reuse a previous startup template when the same research shape appears again.',
+    templateHint:
+      'Reuse a previous startup template when the same research shape appears again. Tutorial/reference examples are examples only; always replace endpoint, API key, and model with your actual setup.',
     noTemplates: 'No saved templates yet',
     useTemplate: 'Use template',
     latestDraft: 'latest draft',
@@ -164,8 +165,9 @@ const copy = {
     titleLabel: 'Project title',
     titlePlaceholder: 'A short human-readable research title',
     titleHelp: 'This is the display title shown in the workspace and project cards.',
-    tutorialExample: 'Use tutorial example',
-    tutorialExampleHelp: 'Fill a clean sample request that matches the first-run guide.',
+    tutorialExample: 'Use reference example',
+    tutorialExampleHelp:
+      'Fill a worked example for reference only. Do not treat its runtime endpoint, API key, or model as a product default.',
     repoLabel: 'Project ID',
     repoPlaceholder: 'Default: next sequential id such as 001, 002, 003',
     repoHelp: 'By default runtime allocates the next sequential project id. You can override it manually when needed.',
@@ -379,7 +381,8 @@ const copy = {
     restore: '恢复表单驱动',
     template: '已保存的启动模板',
     newTemplate: '新建空白表单',
-    templateHint: '当研究形态相近时，可以快速复用过去的启动模板。',
+    templateHint:
+      '当研究形态相近时，可以快速复用过去的启动模板。教程/参考示例只用于参考，里面的端点、API key、模型都必须替换成你的真实配置。',
     noTemplates: '还没有已保存模板',
     useTemplate: '使用模板',
     latestDraft: '最近草稿',
@@ -474,8 +477,9 @@ const copy = {
     titleLabel: '课题标题',
     titlePlaceholder: '一个简洁易读的研究标题',
     titleHelp: '这是工作区和项目卡片中展示给用户看的标题。',
-    tutorialExample: '填入教程示例',
-    tutorialExampleHelp: '填入一个适合首次教程演示的正式示例。',
+    tutorialExample: '填入参考示例',
+    tutorialExampleHelp:
+      '填入一个仅供参考的示例；不要把其中的运行时端点、密钥或模型当作产品默认值。',
     repoLabel: '项目 ID',
     repoPlaceholder: '默认使用下一个顺序编号，例如 001、002、003',
     repoHelp: '默认由 runtime 分配下一个顺序项目 ID；如有需要你也可以手动覆盖。',

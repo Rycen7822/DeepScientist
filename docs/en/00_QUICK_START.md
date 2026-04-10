@@ -270,7 +270,7 @@ The example task is:
 - reproduce the official Mandela-Effect baseline
 - keep the original task setting and evaluation protocol
 - study how to improve truth-preserving collaboration under mixed correct and incorrect social signals
-- use two local inference endpoints to keep throughput high
+- in this reference example, use two local inference endpoints to keep throughput high
 
 Click `Start Research` / `Start Experiment`, then choose `Autonomous Mode` to follow the flow below.
 
@@ -329,12 +329,14 @@ These fields tell DeepScientist where the baseline comes from and what prior wor
 
 Paste this into `Runtime constraints`:
 
+This snippet is a tutorial reference only, not a DeepScientist default endpoint setup. Replace the endpoints, API key, and model with your real runtime before you paste it.
+
 ```text
 - Keep the task definition and evaluation protocol aligned with the official baseline unless a change is explicitly justified.
-- Use two OpenAI-compatible local inference endpoints for throughput:
-  - `http://127.0.0.1:8004/v1`
-  - `http://127.0.0.1:8008/v1`
-- Use API key `1234` and model `/model/gpt-oss-120b` on both endpoints.
+- Use two OpenAI-compatible inference endpoints for throughput:
+  - `http://127.0.0.1:<port-a>/v1`
+  - `http://127.0.0.1:<port-b>/v1`
+- Use your actual API key `<YOUR_API_KEY>` and model `<YOUR_MODEL>` on both endpoints.
 - Keep generation settings close to the baseline unless a justified adjustment is required.
 - Implement asynchronous execution, automatic retry on request failure, and resumable scripts.
 - Split requests across both endpoints so throughput stays high without overloading the service.
