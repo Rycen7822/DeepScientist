@@ -67,12 +67,14 @@ https://arxiv.org/abs/2602.00428
 
 `Runtime constraints`
 
+下面这段只是教程参考，不是 DeepScientist 的默认端点配置。粘贴前请把端点、API key 和模型名替换成你自己的真实运行时。
+
 ```text
 - Keep the task definition and evaluation protocol aligned with the official baseline unless a change is explicitly justified.
-- Use two OpenAI-compatible local inference endpoints for throughput:
-  - `http://127.0.0.1:8004/v1`
-  - `http://127.0.0.1:8008/v1`
-- Use API key `1234` and model `/model/gpt-oss-120b` on both endpoints.
+- Use two OpenAI-compatible inference endpoints for throughput:
+  - `http://127.0.0.1:<port-a>/v1`
+  - `http://127.0.0.1:<port-b>/v1`
+- Use your actual API key `<YOUR_API_KEY>` and model `<YOUR_MODEL>` on both endpoints.
 - Keep generation settings close to the baseline unless a justified adjustment is required.
 - Implement asynchronous execution, automatic retry on request failure, and resumable scripts.
 - Split requests across both endpoints so throughput stays high without overloading the service.
