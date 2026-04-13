@@ -32,6 +32,21 @@ The target is one trustworthy baseline line, not an endless reproduction diary.
 - use workspace `CHECKLIST.md` or compatibility alias `REPRO_CHECKLIST.md` as the baseline execution frontier
 - once the baseline line is confirmed, waived, or blocked, record the next edge explicitly in quest-root `plan.md`
 
+## Comparator-first rule
+
+The baseline stage is comparator-first, not reproduction-first.
+For `comparison_ready`, the default question is:
+
+- what is the lightest trustworthy comparator?
+
+not:
+
+- how do I reproduce the whole source package most completely?
+
+Unless the acceptance target explicitly requires a stronger package, prefer the lightest route that still makes the downstream comparison honest.
+Do not escalate from attach / import / verify-local-existing into full source reproduction unless the lighter route cannot support a fair comparison.
+A more complete baseline package is only the default when the acceptance target is explicitly `paper_repro_ready` or `registry_publishable`.
+
 ## Non-negotiable rules
 
 - no fabricated metrics, logs, run status, or success claims
@@ -64,8 +79,8 @@ These are control gates, not paperwork walls.
 
 Default outcomes:
 
-- `comparison_ready`: one comparator is trustworthy enough for downstream comparison, and the core metric contract is durably recorded
-- `reproduction_complete`: a fuller paper-grade or reuse-grade baseline package is ready
+- `comparison_ready`: the default target; one comparator is trustworthy enough for downstream comparison, and the core metric contract is durably recorded
+- `reproduction_complete`: a fuller paper-grade or reuse-grade baseline package is ready because the quest explicitly needs it
 - `blocked` or `waived`: the current route cannot clear the gate cleanly, and the next move is explicit
 
 Not every baseline needs a paper-grade exact reproduction.
@@ -74,7 +89,7 @@ Once one comparator is trustworthy enough and the core contract is durable, pref
 ## Quick workflow
 
 1. If source reproduction or repair is the chosen route, read the source paper and source repo first; otherwise inspect only the minimum evidence needed to trust the provided or local comparator, or record what is missing and why.
-2. Choose the lightest trustworthy route: attach, import, verify-local-existing, reproduce, or repair.
+2. Choose the lightest trustworthy route: attach, import, verify-local-existing, reproduce, or repair. For `comparison_ready`, `verify-local-existing`, attach, or import should usually beat full reproduction when they already support a fair comparison.
 3. Start with the fast path whenever the current baseline object, command path, and acceptance target are already clear enough to validate cheaply.
 4. For expensive, unclear, or multi-step routes, create `PLAN.md` and `CHECKLIST.md`; for fast-path verify/reuse/attach work, a concise `CHECKLIST.md` is usually enough, and `PLAN.md` only becomes necessary when the route or fallback is still non-obvious.
 5. Keep one dominant phase visible: analysis -> setup -> execution -> verification.
@@ -111,6 +126,7 @@ Fast path means:
 - use a minimal checklist, plus a short `PLAN.md` only when route cost or uncertainty makes it necessary
 - default to reuse-and-verify when runtime already attached a concrete baseline
 - if the startup contract says `execution_start_mode=plan_then_execute`, produce a bounded startup-baseline plan first before heavy reproduction or expensive baseline setup
+- if the acceptance target is `comparison_ready`, treat attach / import / verify-local-existing as the normal winning routes whenever they already satisfy the proof burden
 
 Escalate from fast path to fuller audit only when:
 
@@ -119,6 +135,35 @@ Escalate from fast path to fuller audit only when:
 - code changes are likely required
 - the core contract still spans multiple metrics, datasets, subtasks, or splits that need interpretation before comparison is honest
 - the quest is trying to publish a reusable global baseline rather than only clear the current gate
+
+## Minimum proof package by route
+
+Each route should stop once its minimum proof package is satisfied for the current acceptance target.
+Do not keep widening the route just because a heavier version would be cleaner in the abstract.
+
+- `attach`
+  - baseline object is readable
+  - source identity is clear
+  - canonical metric contract is present or can be made explicit cleanly
+- `import`
+  - imported package is readable
+  - comparator path is clear
+  - canonical metric contract is present or can be reconstructed without guesswork
+- `verify_local_existing`
+  - the local code path or local service really exists
+  - the evaluation path is concrete enough to validate
+  - the metric contract is concrete enough to compare fairly
+- `reproduce_from_source`
+  - the real run or evaluator entrypoint is clear
+  - the environment route is clear enough to run credibly
+  - one real verification path exists, not just a hypothetical command sketch
+- `repair_existing_baseline`
+  - the existing baseline line is close enough to trust after bounded fixes
+  - the broken point is explicit
+  - the repair can be verified without silently changing the comparison contract
+
+If a lighter route already satisfies the current acceptance target, stop there.
+Escalation requires one explicit unresolved comparison risk, not just a preference for completeness.
 
 ## Use when
 
@@ -150,7 +195,8 @@ Operationally:
 - attach, import, or publish alone do not open the downstream gate
 - a full exact reproduction is not always required: if the acceptance target is only comparison-ready, a verified attached/imported/local-existing comparator can be enough to confirm the baseline
 - the comparison-ready minimum still requires `<baseline_root>/json/metric_contract.json`
-- once a comparison-ready baseline is durably confirmed, prefer leaving baseline and advancing instead of continuing baseline polish
+- once a comparison-ready baseline is durably confirmed, baseline should usually stop immediately and hand off to the next scientific step
+- any extra baseline work after that must name one explicit unresolved comparison risk it is meant to remove
 
 ## Required plan and checklist
 
@@ -221,7 +267,8 @@ Choose the route that maximizes trust per unit time and compute; do not follow a
 - reproduce when reuse would leave too much ambiguity in the comparison contract
 - repair when an existing baseline line is close enough that bounded fixes are cheaper than a clean restart
 
-Prefer reuse over redundant reproduction, but prefer reproduction or repair when reuse would still leave the baseline incomparable.
+Prefer reuse over redundant reproduction, but prefer reproduction or repair only when reuse would still leave the baseline incomparable.
+Do not replace a working comparison-ready comparator with a heavier route merely because the heavier route feels cleaner or more complete.
 For a clearer attach/import/verify-local-existing/reproduce/repair rubric, read `references/route-selection.md`.
 
 ## Workflow
@@ -404,6 +451,10 @@ Bounded autonomous fixes are acceptable only when they do not change confirmed s
 ## Exit criteria
 
 Exit the baseline stage once one of the following is durably true:
+
+The default exit rule is simple: once one comparator clears the current acceptance target, baseline should usually end.
+Do not continue baseline just because the route could be cleaner, more complete, or more reusable in the abstract.
+
 
 - a baseline is attached and accepted
 - an imported baseline is accepted

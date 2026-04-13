@@ -16,7 +16,7 @@ def test_system_prompt_prioritizes_user_constraints_and_safe_efficiency() -> Non
 
     assert "primary planning boundary" in text
     assert "best evidence-per-time-and-compute ratio" in text
-    assert "larger safe batch size" in text
+    assert "For `comparison_ready`, `verify-local-existing`, attach, or import should usually beat full reproduction" in text
     assert "Do not weaken comparability, trust, or the meaning of the final result" in text
     assert "safe efficiency levers that preserve those constraints and the comparability contract" in text
 
@@ -193,24 +193,22 @@ def test_baseline_skill_requires_plan_checklist_and_source_reading() -> None:
     assert "## Required plan and checklist" in text
     assert "source paper and source repo first" in text
     assert "`PLAN.md` and `CHECKLIST.md`" in text
-    assert "short-form `PLAN.md` and `CHECKLIST.md`" in text
+    assert "a concise `CHECKLIST.md` is usually enough" in text
     assert "references/baseline-plan-template.md" in text
     assert "references/baseline-checklist-template.md" in text
-    assert "ModelScope" in text
-    assert "compatibility alias" in text
+    assert "## Comparator-first rule" in text
+    assert "comparator-first, not reproduction-first" in text
+    assert "what is the lightest trustworthy comparator?" in text
     assert "concise `1-2` sentence summary" in text
-    assert "equivalence-preserving efficiency gains" in text
-    assert "larger safe batch size" in text
-    assert "one clean implementation pass, one smoke test, and then one normal baseline run" in text
-    assert "original paper's evaluation protocol as the canonical baseline contract" in text
+    assert "Do not replace a working comparison-ready comparator with a heavier route" in text
+    assert "For `comparison_ready`, `verify-local-existing`, attach, or import should usually beat full reproduction" in text
+    assert "A bounded smoke test is usually helpful only when" in text
+    assert "Unless the user explicitly specifies otherwise, treat the original paper's evaluation protocol as the canonical starting point." in text
     assert "multiple metrics, datasets, subtasks, or splits" in text
     assert "flat top-level dictionary keyed by the paper-facing metric ids" in text
     assert "reuse that richer contract instead of hand-writing a thinner one" in text
     assert "`Result/metric.md` is optional temporary scratch memory only" in text
     assert "same failure class" in text
-    assert "## Baseline id and variant rules" in text
-    assert "## Multi-baseline policy" in text
-    assert "references/artifact-payload-examples.md" in text
 
 
 def test_experiment_skill_requires_incremental_seven_field_recording() -> None:
@@ -246,7 +244,7 @@ def test_experiment_skill_requires_incremental_seven_field_recording() -> None:
     assert "next_action" in text
     assert "maximize valid evidence per unit time and compute" in text
     assert "equivalence-preserving efficiency upgrades" in text
-    assert "larger safe batch size" in text
+    assert "For `comparison_ready`, `verify-local-existing`, attach, or import should usually beat full reproduction" in text
     assert "baseline comparability, treat it as a real experiment change" in text
     assert "one clean implementation pass, one bounded smoke or pilot run, and then one normal main run" in text
     assert "implement according to the current `PLAN.md`" in text
@@ -591,7 +589,7 @@ def test_experiment_and_analysis_skills_require_smoke_then_detach_tail_monitorin
         assert "tail_limit=..., order='desc'" in text
         assert "after_seq=last_seen_seq" in text
         assert "bash_exec(mode='history')" in text
-        assert "watchdog_overdue" in text
+        assert "same failure class appears again" in text
         assert "bash_exec(mode='kill', id=..., wait=true, timeout_seconds=...)" in text
         assert "canonical sleep choice" in text
         assert "bash_exec(command='sleep N', mode='await', timeout_seconds=N+buffer, ...)" in text
@@ -613,8 +611,8 @@ def test_baseline_skill_prefers_fast_path_over_upfront_ceremony() -> None:
     assert "do not front-load a full codebase audit" in text
     assert "one bounded smoke test" in text
     assert "do not rerun the same unchanged smoke command" in text
-    assert "watchdog_overdue" in text
-    assert "supplementary analysis baseline" in text
+    assert "same failure class appears again" in text
+    assert "If a lighter route already satisfies the current acceptance target, stop there." in text
     assert "references/comparability-contract.md" in text
     assert len(text.splitlines()) < 700
     assert len(text) < 30000
@@ -636,3 +634,19 @@ def test_system_prompt_keeps_the_global_kernel_small() -> None:
 
     assert "This system prompt is the compact global kernel" in text
     assert "The runtime tells you the `requested_skill`; open that skill before substantive stage work." in text
+
+
+def test_scout_skill_mentions_deepxiv_fallback_contract() -> None:
+    text = _skill_text("scout")
+
+    assert "If DeepXiv is declared available by the system prompt" in text
+    assert "If DeepXiv is declared unavailable, stay on the legacy route" in text
+    assert "artifact.arxiv(paper_id=..., full_text=False)" in text
+
+
+def test_write_skill_mentions_deepxiv_fallback_contract() -> None:
+    text = _skill_text("write")
+
+    assert "If DeepXiv is declared available by the system prompt" in text
+    assert "If DeepXiv is declared unavailable, do not try to force it; stay on the legacy route." in text
+    assert "artifact.arxiv(paper_id=..., full_text=False)" in text
