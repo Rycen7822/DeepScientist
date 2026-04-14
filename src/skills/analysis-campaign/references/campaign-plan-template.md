@@ -20,8 +20,6 @@ For `analysis-lite`, a shorter charter is enough if the question, first slice, e
 - campaign id:
 - parent run or idea:
 - main claim under test:
-- user's core requirements:
-- campaign outcome needed:
 - selected outline ref:
 - paper experiment matrix path:
 - current matrix execution frontier:
@@ -43,9 +41,9 @@ For `analysis-lite`, a shorter charter is enough if the question, first slice, e
 
 ## 5. Slice Plan
 
-| Exp id | Slice id | Tier | Slice class | Experiment type | Research question | Expected value | Priority | Paper placement | Needs code change? | Needs extra baseline? |
-|---|---|---|---|---|---|---|---|---|---|---|
-| | | main_required / main_optional / appendix / optional | auxiliary / claim-carrying / supporting | ablation / sensitivity / robustness / efficiency / highlight / boundary / case-study | | | | main_text / appendix / maybe / omit | yes / no | yes / no |
+| Exp id | Slice id | Experiment type | Research question | Priority | Paper placement | Needs extra baseline? |
+|---|---|---|---|---|---|---|
+| | | ablation / sensitivity / robustness / efficiency / highlight / boundary | | | main_text / appendix / maybe / omit | yes / no |
 
 ## 6. Highlight Hypotheses
 
@@ -59,8 +57,7 @@ For `analysis-lite`, a shorter charter is enough if the question, first slice, e
 
 - quest-local assets already available:
 - checkpoints / baselines already available:
-- downloads or services still needed:
-- fallback options if external assets are blocked:
+- still-missing dependencies:
 
 ## 8. Execution Strategy
 
@@ -68,8 +65,7 @@ For `analysis-lite`, a shorter charter is enough if the question, first slice, e
 - smoke-test policy:
 - main run policy:
 - expected outputs:
-- health signals that justify continued monitoring:
-- conditions that trigger slice redesign, kill, or campaign revision:
+- conditions that trigger slice redesign or route change:
 
 ## 9. Reporting Plan
 
@@ -77,7 +73,6 @@ For `analysis-lite`, a shorter charter is enough if the question, first slice, e
 - what will count as contradiction:
 - what will count as unresolved ambiguity:
 - campaign summary should say in `1-2` sentences:
-- matrix refresh rule after every slice:
 - main-text gating rule:
 
 ## 10. Checklist Link

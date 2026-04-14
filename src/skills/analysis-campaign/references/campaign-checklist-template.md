@@ -32,22 +32,18 @@ For `analysis-lite`, the launch, first slice, and closeout sections are usually 
 
 - [ ] claim under test is explicit
 - [ ] selected outline is present when writing-facing
-- [ ] `PLAN.md` created
-- [ ] `CHECKLIST.md` created
 - [ ] slices prioritized by decision value
 
 ## Assets And Comparators
 
 - [ ] required quest-local assets confirmed
 - [ ] extra baselines or comparators identified
-- [ ] fallback asset routes documented
 
 ## Slice Execution
 
 - [ ] first claim-critical slice launched
 - [ ] smoke checks passed for long slices
 - [ ] monitoring is active when slices are long enough to need it
-- [ ] any slice redesign reflected in `PLAN.md`
 - [ ] each finished slice recorded durably
 
 ## Aggregation

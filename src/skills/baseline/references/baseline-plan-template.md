@@ -20,7 +20,6 @@ Expand the optional sections only when the route is ambiguous, code-touching, br
 - chosen baseline route:
   - attach / import / verify-local-existing / reproduce / repair
 - baseline id:
-- variant id:
 - source paper:
 - source repo:
 - source commit / version / tag:
@@ -60,20 +59,7 @@ Expand the optional sections only when the route is ambiguous, code-touching, br
 - when to escalate from fast path to full audit:
 - revision note:
 
-## 6. Optional Expansion
-
-Fill this only when the route is no longer simple or when later reuse truly depends on it.
-
-- fallback repo or mirror:
-- checkpoints / models:
-- likely external blockers:
-- paper summary in `1-3` bullets:
-- repo summary in `1-3` bullets:
-- what the baseline actually does:
-- what the likely bottlenecks or brittle points are:
-- what still needs verification:
-
-## 7. Checklist Link
+## 6. Checklist Link
 
 - checklist path:
 - which item should move next:
