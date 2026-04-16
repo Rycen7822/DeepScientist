@@ -560,11 +560,11 @@ Terminal-command mapping examples:
 
 Use these as the default first-call patterns before deeper stage skill execution:
 
-- `baseline`: `artifact.get_quest_state(...)` -> `artifact.read_quest_documents(...)` -> `memory.list_recent(...)` / stage-relevant `memory.search(...)` -> bounded `bash_exec` smoke or reproduction -> `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`
+- `baseline`: recover quest/document state -> choose the lightest trustworthy comparator route -> verify the comparator and metric contract -> use `artifact.attach_baseline(...)` / `artifact.publish_baseline(...)` when applicable -> open or bypass the gate with `artifact.confirm_baseline(...)` or `artifact.waive_baseline(...)`
 - `idea`: `artifact.get_quest_state(...)` -> `artifact.list_research_branches(...)` when foundation choice is non-trivial -> stage-relevant `memory.list_recent/search(...)` -> literature discovery plus `artifact.arxiv(...)` when needed -> `artifact.submit_idea(...)`
 - `optimize`: `artifact.get_optimization_frontier(...)` -> `artifact.get_quest_state(...)` -> stage-relevant `memory.list_recent/search(...)` -> `artifact.submit_idea(submission_mode='candidate'|'line', ...)` for briefs/lines and `artifact.record(payload={kind: 'report', report_type: 'optimization_candidate', ...})` for within-line attempts
 - `experiment`: `artifact.resolve_runtime_refs(...)` -> `artifact.get_quest_state(...)` -> `artifact.read_quest_documents(...)` -> bounded `bash_exec` smoke then `detach/read/list/await` supervision -> `artifact.record_main_experiment(...)` -> `artifact.record(payload={kind: 'decision', ...})`
-- `analysis-campaign`: `artifact.resolve_runtime_refs(...)` -> `artifact.create_analysis_campaign(...)` -> slice-local `bash_exec` supervision -> `artifact.record_analysis_slice(...)` for each slice -> `artifact.record(payload={kind: 'decision', ...})` when the campaign changes the route
+- `analysis-campaign`: recover current refs when needed -> call `artifact.create_analysis_campaign(...)` for launched campaign slices -> supervise slice execution -> call `artifact.record_analysis_slice(...)` after every launched slice finishes/fails/blocks -> record the evidence boundary and route implication
 - `write`: `artifact.get_paper_contract_health(...)` -> `artifact.read_quest_documents(...)` -> `artifact.list_paper_outlines(...)` or `artifact.submit_paper_outline(...)` -> durable draft/bundle work -> `artifact.submit_paper_bundle(...)` or a writing-gap `report` / `decision`
 - `review` or `rebuttal`: `artifact.get_paper_contract_health(...)` -> `artifact.read_quest_documents(...)` -> `artifact.get_conversation_context(...)` when the review packet or user instruction history matters -> route extra evidence through `analysis-campaign` and manuscript deltas through `write`
 - `finalize` or direct global-status answers: `artifact.get_global_status(...)` -> `artifact.get_method_scoreboard(...)` if needed -> `artifact.read_quest_documents(...)` / `artifact.get_paper_contract_health(...)` -> `artifact.refresh_summary(...)` / `artifact.render_git_graph(...)` -> `artifact.complete_quest(...)` only after explicit approval
@@ -759,20 +759,22 @@ Do not invent separate execution systems for:
 - rebuttal-driven extra runs
 - write-gap or manuscript-gap follow-up experiments
 
-Use this exact pattern:
+Use this artifact-backed pattern for supplementary experiments that launch campaign slices:
 
 1. recover current ids and refs with `artifact.resolve_runtime_refs(...)` when anything is ambiguous
 2. if the extra evidence should attach to an older durable branch, first call `artifact.activate_branch(...)` for that branch
-3. write a durable plan or decision for the extra evidence package
-4. call `artifact.create_analysis_campaign(...)` with the full slice list
-5. execute each returned slice in its own returned branch/worktree
-6. after each finished slice, immediately call `artifact.record_analysis_slice(...)`
-7. after the final slice, continue from the automatically restored parent branch/worktree
+3. leave a durable route record for the extra evidence package when it is non-trivial
+4. call `artifact.create_analysis_campaign(...)` with the currently justified slice list
+5. execute each returned slice in its returned branch/worktree unless a recorded reason makes another location more faithful
+6. after each launched slice finishes, fails, blocks, or becomes infeasible, immediately call `artifact.record_analysis_slice(...)`
+7. after the final useful slice, continue from the parent route with a durable implication or decision
+
+A bounded read-only audit with no launched slice may close as a durable report or decision. Once a slice is launched, local notes, chat, memory, or a final summary are not substitutes for `artifact.record_analysis_slice(...)`.
 
 Protocol rules:
 
-- even if only one extra experiment is needed, still use a one-slice campaign
-- plan the full slice list before running the first slice
+- even if only one extra experiment is needed, still use a one-slice campaign when it is a launched supplementary experiment
+- plan enough of the slice frontier to make the next action safe; do not pretend speculative future slices are committed
 - ground that list in current quest assets rather than hypothetical future resources
 - treat files, datasets, checkpoints, extracted texts, baselines, prior results, and user-provided attachments already present in the quest as the first-choice asset pool
 - do not launch slices that require unavailable assets or unsupported capabilities unless you first recover them legitimately within the current system
@@ -922,7 +924,7 @@ Treat the stage skill as the detailed SOP and this section as the mandatory glob
 
 - Enter when supplementary evidence is genuinely needed after a main result, during writing, or under review / rebuttal pressure.
 - Even one extra experiment should still be represented as a one-slice `artifact.create_analysis_campaign(...)` call so lineage, worktrees, and Canvas stay durable.
-- Run each slice in its returned workspace, supervise through `bash_exec`, and call `artifact.record_analysis_slice(...)` immediately after each slice finishes or fails.
+- Run each returned slice in its returned workspace unless a recorded reason makes another location more faithful; supervise through `bash_exec`; call `artifact.record_analysis_slice(...)` immediately after each launched slice finishes, fails, blocks, or becomes infeasible.
 - Analysis is not complete until every launched slice has a durable outcome and the parent route is updated with the campaign-level implication.
 
 #### `write`
@@ -1052,13 +1054,13 @@ Use this as the default hard-step operating manual when paper delivery is requir
 
 6. Supplementary evidence
    - Read `analysis-campaign`.
-   - First MCP pattern:
+   - Required artifact pattern:
      - `artifact.resolve_runtime_refs(...)`
      - if needed `artifact.activate_branch(...)`
      - `artifact.create_analysis_campaign(...)`
      - per-slice `bash_exec` supervision
      - `artifact.record_analysis_slice(...)`
-   - Use one-slice campaigns even for one extra experiment.
+   - Use one-slice campaigns for launched supplementary experiments, including one extra experiment.
    - Must transition:
      - back to `decision` when campaign implications are non-trivial
      - to `write` when the paper-facing evidence gap is durably closed
@@ -1191,7 +1193,7 @@ Use this as the default hard-step operating manual when the quest is optimizatio
 
 7. Optional supplementary evidence
    - Read `analysis-campaign` only when extra evidence directly validates a suspected win, disambiguates a frontier decision, or exposes a failure mode that changes the next optimization move.
-   - First MCP pattern:
+   - Required artifact pattern:
      - `artifact.resolve_runtime_refs(...)`
      - `artifact.create_analysis_campaign(...)`
      - per-slice `bash_exec`

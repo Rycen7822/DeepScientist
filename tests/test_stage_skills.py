@@ -223,30 +223,33 @@ def test_baseline_skill_documents_confirm_or_waive_gate() -> None:
     assert "artifact.waive_baseline(...)" in text
     assert "do not open the downstream gate" in text
     assert "requested_baseline_ref" in text
-    assert "default to reuse-and-verify" in text
+    assert "verify the comparator and metric contract" in text
 
 
-def test_baseline_skill_documents_uv_first_python_setup() -> None:
+def test_baseline_skill_documents_environment_autonomy_with_uv_as_tactic() -> None:
     text = (repo_root() / "src" / "skills" / "baseline" / "SKILL.md").read_text(encoding="utf-8")
-    assert "environment setup should be standardized around `uv`" in text
-    assert "### Python environment rule: use `uv`" in text
+    assert "## Environment tactics" in text
+    assert "For Python baselines, prefer a reproducible isolated environment" in text
+    assert "`uv` is a useful default tactic" in text
     assert "uv sync" in text
     assert "uv venv" in text
     assert "uv pip install" in text
     assert "uv run python" in text
-    assert "only accept a non-`uv` route" in text
+    assert "Switch to repo-native conda, docker, poetry" in text
+    assert "Do not force a global `uv` route" in text
 
 
-def test_baseline_skill_has_compact_file_by_file_contract() -> None:
+def test_baseline_skill_has_hard_artifact_gate_and_flexible_route_records() -> None:
     text = (repo_root() / "src" / "skills" / "baseline" / "SKILL.md").read_text(encoding="utf-8")
-    assert "## File-by-file contract" in text
-    assert "`PLAN.md` or compatibility alias `analysis_plan.md`" in text
-    assert "`CHECKLIST.md` or compatibility alias `REPRO_CHECKLIST.md`" in text
-    assert "`setup.md` is optional unless environment or layout choices are non-trivial" in text
-    assert "`execution.md` is optional unless the run is long, multi-step, or rerun-heavy" in text
-    assert "`verification.md` is optional as a filename but required in substance" in text
-    assert "`attachment.yaml` is required for attached or imported baselines" in text
-    assert "`<baseline_root>/json/metric_contract.json` is the canonical accepted comparison contract" in text
+    assert "## Hard artifact flow" in text
+    assert "artifact.attach_baseline(...)" in text
+    assert "artifact.publish_baseline(...)" in text
+    assert "artifact.confirm_baseline(...)" in text
+    assert "artifact.waive_baseline(...)" in text
+    assert "Do not treat chat, memory, `attachment.yaml`, `PLAN.md`, local files, or published registry entries as a substitute" in text
+    assert "## Durable route records" in text
+    assert "`PLAN.md`, `CHECKLIST.md`, `setup.md`, `execution.md`, `verification.md`, `analysis_plan.md`, and `REPRO_CHECKLIST.md` are compatibility surfaces" in text
+    assert "`attachment.yaml` or equivalent provenance is required for attached or imported baselines" in text
 
 
 def test_decision_skill_requires_reuse_baseline_to_land_on_attach_and_confirm() -> None:
@@ -436,7 +439,8 @@ def test_stage_skills_document_new_branch_lineage_semantics() -> None:
 def test_analysis_campaign_skill_requires_one_slice_campaign_for_single_extra_experiment() -> None:
     text = (repo_root() / "src" / "skills" / "analysis-campaign" / "SKILL.md").read_text(encoding="utf-8")
     assert "one-slice campaign" in text
-    assert "current workspace/result node" in text
+    assert "artifact.create_analysis_campaign(...)" in text
+    assert "artifact.record_analysis_slice(...)" in text
 
 
 def test_review_and_rebuttal_skills_route_extra_evidence_into_shared_campaign_protocol() -> None:

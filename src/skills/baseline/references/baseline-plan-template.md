@@ -1,65 +1,49 @@
-# Baseline Plan Template
+# Baseline Route Record Template
 
-Use this when the `baseline` stage becomes concrete enough to act.
-Keep it short when the route is simple.
-For fast-path attach/import/prebound validation, a one-screen plan is enough if it preserves the route, command path, outputs, acceptance condition, core metric contract scope, and fallback.
-Expand the optional sections only when the route is ambiguous, code-touching, broken, or intended for reuse beyond the current quest.
+Use this only when a durable route record reduces ambiguity.
+It is a reference template, not a required path or required filename.
+Keep it one-screen unless the route is ambiguous, code-touching, expensive, broken, or intended for reuse.
 
-## 1. Context
+## Objective
 
-- parent_map_node:
-- loop_id:
-- node_objective:
-- success_condition:
+- acceptance target:
+- success condition:
+- blocker condition:
+- next route on success:
+- next route on failure:
 
-## 2. Core Contract
+## Baseline Contract
 
-- quest goal:
-- user's core requirements:
-- non-negotiable user constraints:
-- chosen baseline route:
+- chosen route:
   - attach / import / verify-local-existing / reproduce / repair
 - baseline id:
-- source paper:
-- source repo:
+- comparator identity:
+- source paper / repo / package / service:
 - source commit / version / tag:
 - task:
 - dataset / split:
-- core metric contract scope:
-- expected command path:
+- required metric ids and directions:
+- known deviations:
+
+## Artifact Flow
+
+- attach/import/publish needed:
+- confirmation target:
+- waiver condition:
+- metric contract path:
+
+## Execution Choice
+
+- working location:
+- environment route:
+- command / endpoint / trusted-output path:
 - expected outputs:
-- acceptance condition:
-- cheapest fallback:
+- smoke or direct-run decision:
+- why this path is sufficient:
 
-## 3. Current Node Tasks
+## Current Frontier
 
-- [ ] confirm the concrete baseline route
-- [ ] validate the command path or justify skipping smoke
-- [ ] launch or verify the real validation path
-- [ ] record the node outcome and next edge if the route changed
-
-## 4. Execution Path
-
-- working directory:
-- environment plan:
-- required downloads:
-- hardware assumptions:
-- smoke test needed:
-  - yes / no
-- smoke command:
-- main validation or run command:
-- expected runtime / budget:
-- durable log path:
-- verification targets:
-- fastest failure signal:
-
-## 5. Risks And Revision
-
-- main risks:
-- when to escalate from fast path to full audit:
-- revision note:
-
-## 6. Checklist Link
-
-- checklist path:
-- which item should move next:
+- next action:
+- active blocker:
+- latest evidence:
+- fallback or route switch:

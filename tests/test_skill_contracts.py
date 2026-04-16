@@ -185,29 +185,32 @@ def test_system_prompt_keeps_compact_reference_wording_templates() -> None:
     assert "这里有个分叉需要你确认" in text
 
 
-def test_baseline_skill_requires_plan_checklist_and_source_reading() -> None:
+def test_baseline_skill_prioritizes_artifact_gate_over_fixed_paths() -> None:
     text = _skill_text("baseline")
 
-    assert "## Quick workflow" in text
-    assert "## Fast-path first" in text
-    assert "## Required plan and checklist" in text
-    assert "source paper and source repo first" in text
-    assert "`PLAN.md` and `CHECKLIST.md`" in text
-    assert "a concise `CHECKLIST.md` is usually enough" in text
+    assert "## Authority and freedom" in text
+    assert "The agent owns the execution path" in text
+    assert "Do not treat templates, filenames, `uv`, smoke tests, detached runs, or the phase order as required paths" in text
+    assert "## Hard artifact flow" in text
+    assert "artifact.attach_baseline(...)" in text
+    assert "artifact.publish_baseline(...)" in text
+    assert "artifact.confirm_baseline(...)" in text
+    assert "artifact.waive_baseline(...)" in text
+    assert "Do not treat chat, memory, `attachment.yaml`, `PLAN.md`, local files, or published registry entries as a substitute" in text
+    assert "## Hard acceptance gates" in text
+    assert "Baseline success means later stages can compare against one accepted comparator without guessing" in text
+    assert "If source reproduction or repair is active, read the source paper and source repo" in text
+    assert "compatibility surfaces, not mandatory success paths" in text
     assert "references/baseline-plan-template.md" in text
     assert "references/baseline-checklist-template.md" in text
     assert "## Comparator-first rule" in text
     assert "comparator-first, not reproduction-first" in text
     assert "what is the lightest trustworthy comparator?" in text
-    assert "concise `1-2` sentence summary" in text
-    assert "Do not replace a working comparison-ready comparator with a heavier route" in text
-    assert "For `comparison_ready`, `verify-local-existing`, attach, or import should usually beat full reproduction" in text
-    assert "A bounded smoke test is usually helpful only when" in text
-    assert "Unless the user explicitly specifies otherwise, treat the original paper's evaluation protocol as the canonical starting point." in text
+    assert "A bounded smoke test is useful only when" in text
     assert "multiple metrics, datasets, subtasks, or splits" in text
     assert "flat top-level dictionary keyed by the paper-facing metric ids" in text
     assert "reuse that richer contract instead of hand-writing a thinner one" in text
-    assert "`Result/metric.md` is optional temporary scratch memory only" in text
+    assert "`Result/metric.md` is optional scratch memory only" in text
     assert "same failure class" in text
 
 
@@ -334,26 +337,35 @@ def test_algorithm_first_companion_skills_handoff_into_optimize() -> None:
     assert "return to `optimize` or `decision` for frontier review" in experiment_text
 
 
-def test_analysis_campaign_skill_requires_outline_bound_campaign_fields() -> None:
+def test_analysis_campaign_skill_prioritizes_artifact_flow_and_evidence_boundary() -> None:
     text = _skill_text("analysis-campaign")
 
-    assert "## Quick workflow" in text
-    assert "## Required plan and checklist" in text
-    assert "`PLAN.md` and `CHECKLIST.md`" in text
+    assert "## Authority and freedom" in text
+    assert "The agent owns the analysis path" in text
+    assert "Do not treat `PLAN.md`, `CHECKLIST.md`, paper-matrix files, smoke tests, detached runs, `tqdm`, or a fixed phase order as required paths" in text
+    assert "## Hard artifact flow" in text
+    assert "artifact.create_analysis_campaign(...)" in text
+    assert "artifact.record_analysis_slice(...)" in text
+    assert "Do not replace `artifact.record_analysis_slice(...)` with chat, memory, a local note, or a campaign summary for any launched slice" in text
+    assert "## Hard success gates" in text
+    assert "An analysis campaign succeeds when it changes or confirms the evidence boundary of a parent claim" in text
+    assert "every launched slice has a durable artifact outcome" in text
+    assert "## Slice evidence contract" in text
+    assert "## Comparability contract" in text
+    assert "direct apples-to-apples comparison" in text
+    assert "## Durable route records" in text
+    assert "control surfaces, not mandatory success paths" in text
     assert "references/campaign-plan-template.md" in text
     assert "references/campaign-checklist-template.md" in text
-    assert "slice feasibility, ordering, comparators, or campaign interpretation changes materially" in text
-    assert "concise `1-2` sentence summary" in text
-    assert "do not launch it until a selected outline exists" in text
     assert "selected_outline_ref" in text
     assert "research_questions" in text
     assert "experimental_designs" in text
     assert "todo_items" in text
     assert "stable support" in text
     assert "contradiction" in text
-    assert "`slice_class`, such as `auxiliary`, `claim-carrying`, or `supporting`" in text
-    assert "move it from `minimum` to `solid`" in text
-    assert "required_baselines" in text
+    assert "claim-carrying" in text
+    assert "supporting" in text
+    assert "auxiliary" in text
     assert "comparison_baselines" in text
     assert "evaluation_summary" in text
     assert "takeaway" in text
@@ -366,6 +378,7 @@ def test_analysis_campaign_skill_requires_outline_bound_campaign_fields() -> Non
     assert "paper_role" in text
     assert "highlight-validation" in text or "highlight validation" in text
     assert "efficiency or cost" in text
+    assert "a new main experiment is disguised as analysis" in text
     assert "references/writing-facing-slice-examples.md" in text
 
 
@@ -584,7 +597,7 @@ def test_experiment_and_analysis_skills_require_smoke_then_detach_tail_monitorin
         assert "smoke test" in text
         assert "bash_exec(mode='detach', ...)" in text
         assert "2000 lines or fewer" in text
-        assert "first 500 lines plus the last 1500 lines" in text
+        assert ("first 500 lines plus the last 1500 lines" in text) or ("first 500 lines plus last 1500 lines" in text)
         assert "bash_exec(mode='read', id=..., start=..., tail=...)" in text
         assert "tail_limit=..., order='desc'" in text
         assert "after_seq=last_seen_seq" in text
@@ -607,12 +620,11 @@ def test_baseline_skill_prefers_fast_path_over_upfront_ceremony() -> None:
 
     assert "Default to the lightest baseline path" in text
     assert "Default to a fast path when it can establish trust with less work" in text
-    assert "do not restart broad baseline discovery by default" in text
-    assert "do not front-load a full codebase audit" in text
-    assert "one bounded smoke test" in text
-    assert "do not rerun the same unchanged smoke command" in text
+    assert "Do not restart broad discovery" in text
+    assert "A bounded smoke test is useful only when" in text
+    assert "do not repeat an unchanged check" in text
     assert "same failure class appears again" in text
-    assert "If a lighter route already satisfies the current acceptance target, stop there." in text
+    assert "If a lighter route satisfies the current acceptance target, stop there." in text
     assert "references/comparability-contract.md" in text
     assert len(text.splitlines()) < 700
     assert len(text) < 30000
