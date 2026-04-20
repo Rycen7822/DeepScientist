@@ -10,6 +10,7 @@ import { DeepXivSettingsPanel } from '@/components/settings/DeepXivSettingsPanel
 import { connectorCatalog, type ConnectorName } from '@/components/settings/connectorCatalog'
 import { connectorConfigAutoEnabled } from '@/components/settings/connectorSettingsHelpers'
 import { RegistrySettingsForm } from '@/components/settings/RegistrySettingsForm'
+import { RunnerSettingsPanel } from '@/components/settings/RunnerSettingsPanel'
 import { translateSettingsCatalogText, translateSettingsHelpMarkdown } from '@/components/settings/settingsCatalogI18n'
 import { HintDot } from '@/components/ui/hint-dot'
 import { Input } from '@/components/ui/input'
@@ -944,21 +945,25 @@ export function SettingsPage({
 
                 {document && !isConnectorDocument && !isBaselineDocument && !isDeepXivDocument ? (
                   <div className="pt-6">
-                    <RegistrySettingsForm
-                      documentName={selectedName as Exclude<ConfigDocumentName, 'connectors' | 'baselines'>}
-                      locale={locale}
-                      value={structuredDraft}
-                      validation={validation}
-                      testResult={testResult}
-                      saving={saving}
-                      validating={validating}
-                      testingAll={testingAll}
-                      systemTestable={Boolean(document.meta?.system_testable)}
-                      onChange={setStructuredDraft}
-                      onSave={() => void handleSave()}
-                      onValidate={() => void runValidate()}
-                      onTestAll={() => void runTestAll()}
-                    />
+                    {selectedName === 'runners' ? (
+                      <RunnerSettingsPanel locale={locale} />
+                    ) : (
+                      <RegistrySettingsForm
+                        documentName={selectedName as Exclude<ConfigDocumentName, 'connectors' | 'baselines'>}
+                        locale={locale}
+                        value={structuredDraft}
+                        validation={validation}
+                        testResult={testResult}
+                        saving={saving}
+                        validating={validating}
+                        testingAll={testingAll}
+                        systemTestable={Boolean(document.meta?.system_testable)}
+                        onChange={setStructuredDraft}
+                        onSave={() => void handleSave()}
+                        onValidate={() => void runValidate()}
+                        onTestAll={() => void runTestAll()}
+                      />
+                    )}
                   </div>
                 ) : null}
               </>

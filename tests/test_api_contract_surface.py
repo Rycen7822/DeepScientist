@@ -447,25 +447,31 @@ def test_artifact_tool_views_render_activate_branch_and_delivery_context() -> No
 def test_runner_settings_surface_exposes_reasoning_and_retry_controls() -> None:
     settings_catalog_source = _read("src/ui/src/components/settings/settingsFormCatalog.ts")
     settings_form_source = _read("src/ui/src/components/settings/RegistrySettingsForm.tsx")
+    runner_panel_source = _read("src/ui/src/components/settings/RunnerSettingsPanel.tsx")
     config_service_source = _read("src/deepscientist/config/service.py")
+    doctor_source = _read("src/deepscientist/doctor.py")
 
     assert "{ label: 'Claude', value: 'claude' }" in settings_catalog_source
-    assert "Experimental Claude-compatible runner" in settings_catalog_source
+    assert "{ label: 'Kimi', value: 'kimi' }" in settings_catalog_source
+    assert "{ label: 'OpenCode', value: 'opencode' }" in settings_catalog_source
+    assert "key: 'permission_mode'" in settings_catalog_source
+    assert "key: 'agent'" in settings_catalog_source
+    assert "key: 'thinking'" in settings_catalog_source
+    assert "key: 'yolo'" in settings_catalog_source
+    assert "key: 'default_agent'" in settings_catalog_source
+    assert "key: 'variant'" in settings_catalog_source
     assert "key: 'model_reasoning_effort'" in settings_catalog_source
     assert "key: 'retry_on_failure'" in settings_catalog_source
     assert "key: 'retry_max_attempts'" in settings_catalog_source
     assert "key: 'retry_initial_backoff_sec'" in settings_catalog_source
     assert "key: 'retry_backoff_multiplier'" in settings_catalog_source
     assert "key: 'retry_max_backoff_sec'" in settings_catalog_source
-    assert "retry_on_failure: true" in settings_form_source
-    assert "retry_max_attempts: 5" in settings_form_source
-    assert "retry_initial_backoff_sec: 10" in settings_form_source
-    assert "retry_backoff_multiplier: 6" in settings_form_source
-    assert "retry_max_backoff_sec: 1800" in settings_form_source
-    assert "codex.retry_on_failure: true" in config_service_source
-    assert "at most `5` total attempts" in config_service_source
+    assert "runnerFields.filter((field) => !field.runners || field.runners.includes(runnerName))" in settings_form_source
+    assert "RUNNER_ORDER: BuiltinRunnerName[] = ['codex', 'claude', 'kimi', 'opencode']" in runner_panel_source
+    assert "Moonshot Kimi Code CLI with isolated ~/.kimi runtime materialization" in runner_panel_source or "Kimi Code" in runner_panel_source
+    assert "at most `7` total attempts" in config_service_source
     assert "10s / 6x / 1800s max" in config_service_source
-    assert "experimental runner" in config_service_source
+    assert "Enable one of `codex`, `claude`, `kimi`, or `opencode`" in doctor_source
 
 
 def test_ui_font_loading_uses_single_stylesheet_entrypoint() -> None:

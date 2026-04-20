@@ -31,13 +31,19 @@ type RunnerEnvRow = {
 
 type WorkspaceMode = 'copilot' | 'autonomous'
 
-const DEFAULT_CODEX_ENV_KEYS = ['OPENAI_BASE_URL', 'OPENAI_API_KEY'] as const
+const DEFAULT_RUNNER_ENV_KEYS: Record<string, readonly string[]> = {
+  codex: ['OPENAI_BASE_URL', 'OPENAI_API_KEY'],
+  claude: ['ANTHROPIC_AUTH_TOKEN', 'ANTHROPIC_API_KEY', 'ANTHROPIC_BASE_URL', 'CLAUDE_CODE_MAX_OUTPUT_TOKENS'],
+  kimi: [],
+  opencode: [],
+}
 
-function normalizeRunnerEnvRows(raw: unknown): RunnerEnvRow[] {
+function normalizeRunnerEnvRows(raw: unknown, runnerName: string = 'codex'): RunnerEnvRow[] {
   const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? (raw as Record<string, unknown>) : {}
   const rows: RunnerEnvRow[] = []
   const seen = new Set<string>()
-  for (const key of DEFAULT_CODEX_ENV_KEYS) {
+  const defaultKeys = DEFAULT_RUNNER_ENV_KEYS[runnerName] || []
+  for (const key of defaultKeys) {
     rows.push({
       key,
       value: typeof source[key] === 'string' ? source[key] : '',
@@ -217,15 +223,16 @@ export function QuestSettingsSurface({
       document.meta?.structured_config && typeof document.meta.structured_config === 'object'
         ? (document.meta.structured_config as Record<string, unknown>)
         : {}
-    const codex =
-      structured.codex && typeof structured.codex === 'object'
-        ? (structured.codex as Record<string, unknown>)
+    const activeRunnerName = String(snapshot?.runner || snapshot?.default_runner || 'codex').trim().toLowerCase() || 'codex'
+    const activeRunnerConfig =
+      structured[activeRunnerName] && typeof structured[activeRunnerName] === 'object'
+        ? (structured[activeRunnerName] as Record<string, unknown>)
         : {}
-    const rows = normalizeRunnerEnvRows(codex.env)
+    const rows = normalizeRunnerEnvRows(activeRunnerConfig.env, activeRunnerName)
     setRunnerEnvRows(rows)
     setSavedRunnerEnvRows(rows)
     setRunnerConfigRevision(document.revision || null)
-  }, [])
+  }, [snapshot?.default_runner, snapshot?.runner])
 
   React.useEffect(() => {
     void reloadRunnerEnv()
@@ -428,12 +435,13 @@ export function QuestSettingsSurface({
         document.meta?.structured_config && typeof document.meta.structured_config === 'object'
           ? ({ ...(document.meta.structured_config as Record<string, unknown>) } as Record<string, unknown>)
           : {}
-      const codex =
-        structured.codex && typeof structured.codex === 'object'
-          ? ({ ...(structured.codex as Record<string, unknown>) } as Record<string, unknown>)
+      const activeRunnerName = String(snapshot?.runner || snapshot?.default_runner || 'codex').trim().toLowerCase() || 'codex'
+      const activeRunnerConfig =
+        structured[activeRunnerName] && typeof structured[activeRunnerName] === 'object'
+          ? ({ ...(structured[activeRunnerName] as Record<string, unknown>) } as Record<string, unknown>)
           : {}
-      codex.env = runnerEnvRowsToPayload(runnerEnvRows)
-      structured.codex = codex
+      activeRunnerConfig.env = runnerEnvRowsToPayload(runnerEnvRows)
+      structured[activeRunnerName] = activeRunnerConfig
       const result = await client.saveConfig('runners', {
         structured,
         revision: document.revision || runnerConfigRevision || undefined,
@@ -441,7 +449,7 @@ export function QuestSettingsSurface({
       if (!result.ok) {
         toast({
           title: 'Save failed',
-          description: String(result.message || 'Unable to update Codex environment variables.'),
+          description: String(result.message || 'Unable to update runner environment variables.'),
           variant: 'destructive',
         })
         return
@@ -449,18 +457,20 @@ export function QuestSettingsSurface({
       await Promise.all([reloadRunnerEnv(), onRefresh()])
       toast({
         title: 'Saved',
-        description: 'Codex environment variables will be injected automatically on the next run.',
+        description: 'Runner environment variables will be injected automatically on the next run.',
       })
     } finally {
       setRunnerEnvSaving(false)
     }
-  }, [onRefresh, reloadRunnerEnv, runnerConfigRevision, runnerEnvRows, toast])
+  }, [onRefresh, reloadRunnerEnv, runnerConfigRevision, runnerEnvRows, snapshot?.default_runner, snapshot?.runner, toast])
 
   const runnerEnvDirty = React.useMemo(
     () => JSON.stringify(runnerEnvRows) !== JSON.stringify(savedRunnerEnvRows),
     [runnerEnvRows, savedRunnerEnvRows]
   )
   const workspaceModeDirty = workspaceMode !== savedWorkspaceMode
+  const activeRunnerName = String(snapshot?.runner || snapshot?.default_runner || 'codex').trim().toLowerCase() || 'codex'
+  const activeRunnerDefaultEnvKeys = DEFAULT_RUNNER_ENV_KEYS[activeRunnerName] || []
 
   const workspaceModeItems = React.useMemo(
     () => [
@@ -600,9 +610,9 @@ export function QuestSettingsSurface({
             <div className="p-4 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-medium text-foreground">Codex environment</div>
+                  <div className="text-sm font-medium text-foreground">Runner environment</div>
                   <div className="mt-1 text-xs text-muted-foreground">
-                    These variables are injected when DeepScientist starts Codex. Empty values are ignored.
+                    These variables are injected when DeepScientist starts the active runner. Empty values are ignored.
                   </div>
                   {runnerEnvDirty ? (
                     <div className="mt-2 text-xs font-medium text-[var(--ds-brand)]">
@@ -648,7 +658,7 @@ export function QuestSettingsSurface({
                           )
                         )
                       }
-                      placeholder={index < DEFAULT_CODEX_ENV_KEYS.length ? DEFAULT_CODEX_ENV_KEYS[index] : 'ENV_NAME'}
+                      placeholder={index < activeRunnerDefaultEnvKeys.length ? activeRunnerDefaultEnvKeys[index] : 'ENV_NAME'}
                     />
                     <Input
                       value={row.value}
@@ -668,7 +678,7 @@ export function QuestSettingsSurface({
                       className="shrink-0"
                       onClick={() =>
                         setRunnerEnvRows((current) => {
-                          if (index < DEFAULT_CODEX_ENV_KEYS.length) {
+                          if (index < activeRunnerDefaultEnvKeys.length) {
                             return current.map((item, itemIndex) =>
                               itemIndex === index ? { ...item, value: '' } : item
                             )
