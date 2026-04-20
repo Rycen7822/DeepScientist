@@ -24,6 +24,11 @@ This skill intentionally absorbs the strongest old DeepScientist writing discipl
 - Follow the shared interaction contract injected by the system prompt.
 - Keep writing updates brief unless the paper contract, evidence boundary, blocker state, or next route changed materially.
 
+Stage-start requirement:
+
+- begin every write pass with `memory.list_recent(scope='quest', limit=5)`
+- then run at least one write-relevant `memory.search(...)` before reopening a draft line, related-work pass, or proofing pass that depends on prior durable lessons
+
 ## Planning note
 
 Use quest/workspace planning files only when they help control a non-trivial paper line instead of becoming another reason to delay drafting or route-back decisions.
@@ -662,6 +667,10 @@ Preferred artifact choices:
 
 Keep each writing artifact tightly linked to evidence paths.
 
+Stage-end requirement:
+
+- if writing produced a durable reviewer-facing lesson, proofing rule, citation caveat, or paper-structure insight worth reusing later, write at least one `memory.write(...)` before leaving the stage
+
 ## Hard integrity rules
 
 - do not invent citations
@@ -694,3 +703,11 @@ Exit the write stage only when one of the following is durably true:
 For paper-like writing, do not treat the draft as evidence-complete enough for `finalize` while `paper/paper_experiment_matrix.*` still contains currently feasible non-optional rows that remain unresolved.
 
 A good writing pass leaves a clearer draft, a clearer gap, or a clearer route-back decision, not an endless polishing loop.
+
+## Paper-figure requirements
+
+When this stage prepares paper-facing figures or final figure guidance, keep the palette aligned with the system prompt Morandi plotting template.
+
+- `mist-stone` should remain the neutral baseline / comparison color
+- `sage-clay` should remain the primary positive or accepted-result color
+- use `#B88C8C` as the restrained dust-rose accent for caveats, ablations, or weaker alternatives when needed

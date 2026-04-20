@@ -63,6 +63,7 @@ A more complete baseline package is only the default when the acceptance target 
 - do not front-load a full codebase audit
 - do not require a fresh memory pass for every fast-path validation
 - use `memory.list_recent(...)` or `memory.search(...)` when resuming, reopening old command paths, or avoiding repeated failures
+- fast-path exception: when the comparator, command path, and metric contract are already concrete, do not force a new memory sweep before a lightweight verify-local-existing or attach/import decision
 - if runtime already exposes `requested_baseline_ref` or a matching `confirmed_baseline_ref`, default to reuse-and-verify
 - escalate to fuller audit, reproduction, or repair only when no concrete comparator, command path, or core comparability surface can be trusted yet
 

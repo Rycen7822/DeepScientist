@@ -624,6 +624,15 @@ Stage-end requirement:
 
 - if the run produced a durable lesson, incident pattern, comparability caveat, or route-changing outcome, write at least one `memory.write(...)` before leaving the stage
 
+## Connector-facing chart requirements
+
+When this stage produces connector-facing charts or milestone-facing visuals, keep the palette aligned with the system prompt Morandi plotting template.
+
+- `sage-clay` should be the primary positive / accepted-result color
+- `mist-stone` should be the neutral comparison / baseline color
+- `dust-rose` should be the restrained caution / limitation accent when needed
+- keep light paper-style backgrounds close to `#F3EEE8`
+
 ## Memory note
 
 Use memory only to avoid repeating known failures or to preserve reusable experiment lessons; the canonical run record belongs in `artifact`.

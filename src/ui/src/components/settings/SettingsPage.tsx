@@ -9,23 +9,21 @@ import { ConnectorSettingsForm } from '@/components/settings/ConnectorSettingsFo
 import { DeepXivSettingsPanel } from '@/components/settings/DeepXivSettingsPanel'
 import { connectorCatalog, type ConnectorName } from '@/components/settings/connectorCatalog'
 import { connectorConfigAutoEnabled } from '@/components/settings/connectorSettingsHelpers'
-// TODO(upstream ea21104): the following sections were imported but never added
-// to the tree. Re-enable once the component files land.
-// import { SettingsConnectorHealthSection } from '@/components/settings/SettingsConnectorHealthSection'
-// import { SettingsControllersSection } from '@/components/settings/SettingsControllersSection'
-// import { SettingsDiagnosticsSection } from '@/components/settings/SettingsDiagnosticsSection'
-// import { SettingsErrorsSection } from '@/components/settings/SettingsErrorsSection'
-// import { SettingsIssueReportSection } from '@/components/settings/SettingsIssueReportSection'
-// import { SettingsLogsSection } from '@/components/settings/SettingsLogsSection'
-// import { SettingsOpsLauncher, SettingsOpsRail } from '@/components/settings/SettingsOpsRail'
-// import { SettingsQuestDetailSection } from '@/components/settings/SettingsQuestDetailSection'
-// import { SettingsQuestsSection } from '@/components/settings/SettingsQuestsSection'
-// import { SettingsRepairsSection } from '@/components/settings/SettingsRepairsSection'
-// import { SettingsRuntimeSection } from '@/components/settings/SettingsRuntimeSection'
-// import { SettingsSearchSection } from '@/components/settings/SettingsSearchSection'
-// import { SettingsSummarySection } from '@/components/settings/SettingsSummarySection'
-// import { SettingsStatsSection } from '@/components/settings/SettingsStatsSection'
+import { SettingsConnectorHealthSection } from '@/components/settings/SettingsConnectorHealthSection'
+import { SettingsControllersSection } from '@/components/settings/SettingsControllersSection'
+import { SettingsDiagnosticsSection } from '@/components/settings/SettingsDiagnosticsSection'
+import { SettingsErrorsSection } from '@/components/settings/SettingsErrorsSection'
+import { SettingsIssueReportSection } from '@/components/settings/SettingsIssueReportSection'
+import { SettingsLogsSection } from '@/components/settings/SettingsLogsSection'
+import { SettingsOpsLauncher, SettingsOpsRail } from '@/components/settings/SettingsOpsRail'
+import { SettingsQuestDetailSection } from '@/components/settings/SettingsQuestDetailSection'
+import { SettingsQuestsSection } from '@/components/settings/SettingsQuestsSection'
+import { SettingsRepairsSection } from '@/components/settings/SettingsRepairsSection'
 import { RunnerSettingsPanel } from '@/components/settings/RunnerSettingsPanel'
+import { SettingsRuntimeSection } from '@/components/settings/SettingsRuntimeSection'
+import { SettingsSearchSection } from '@/components/settings/SettingsSearchSection'
+import { SettingsSummarySection } from '@/components/settings/SettingsSummarySection'
+import { SettingsStatsSection } from '@/components/settings/SettingsStatsSection'
 import { RegistrySettingsForm } from '@/components/settings/RegistrySettingsForm'
 import { translateSettingsCatalogText, translateSettingsHelpMarkdown } from '@/components/settings/settingsCatalogI18n'
 import { Badge } from '@/components/ui/badge'
@@ -64,6 +62,15 @@ export type SettingsSectionName =
   | 'search'
 
 const CONFIG_ORDER: ConfigDocumentName[] = ['config', 'runners', 'connectors', 'baselines', 'plugins', 'mcp_servers']
+const SETTINGS_ORDER: Array<Extract<SettingsSectionName, ConfigDocumentName | 'deepxiv'>> = [
+  'config',
+  'runners',
+  'connectors',
+  'baselines',
+  'deepxiv',
+  'plugins',
+  'mcp_servers',
+]
 const OPERATIONS_ORDER: Array<
   Extract<
     SettingsSectionName,
@@ -71,7 +78,7 @@ const OPERATIONS_ORDER: Array<
   >
 > = ['summary', 'runtime', 'connectors_health', 'diagnostics', 'errors', 'issues', 'logs', 'quests', 'repairs', 'controllers', 'stats', 'search']
 
-const CONFIG_META = {
+const SETTINGS_META = {
   config: {
     label: { en: 'Runtime', zh: '运行时' },
     hint: { en: 'Home paths, git, logging, and daemon defaults.', zh: '主目录路径、git、日志与 daemon 默认设置。' },
@@ -94,6 +101,13 @@ const CONFIG_META = {
       zh: '可复用基线条目及其生命周期管理。',
     },
   },
+  deepxiv: {
+    label: { en: 'DeepXiv', zh: 'DeepXiv' },
+    hint: {
+      en: 'Configure the DeepXiv literature route, local token policy, and prompt gating behavior.',
+      zh: '配置 DeepXiv 文献路线、本地 token 策略，以及 prompt 的启用 / 禁用规则。',
+    },
+  },
   plugins: {
     label: { en: 'Extensions', zh: '扩展' },
     hint: { en: 'Optional plugins and local extension discovery.', zh: '可选插件与本地扩展发现。' },
@@ -102,56 +116,56 @@ const CONFIG_META = {
     label: { en: 'MCP', zh: 'MCP' },
     hint: { en: 'External MCP servers and access policy.', zh: '外部 MCP 服务与访问策略。' },
   },
-} satisfies Record<ConfigDocumentName, { label: Record<Locale, string>; hint: Record<Locale, string> }>
+} satisfies Record<SettingsSectionName, { label: Record<Locale, string>; hint: Record<Locale, string> }>
 
 const OPERATIONS_META = {
   summary: {
     label: { en: 'Summary', zh: '摘要' },
-    hint: { en: 'System summary, hardware state, and quick operator actions.', zh: '系统摘要、硬件状态与快捷运维动作。' },
+    hint: { en: 'Start here for a quick health check, a few key signals, and the next useful admin actions.', zh: '先从这里快速判断系统是否健康、当前重点在哪，以及下一步该进入哪个运维页面。' },
   },
   runtime: {
     label: { en: 'Sessions & Hardware', zh: '会话与硬件' },
-    hint: { en: 'Hardware details, GPU selection, and bash_exec session evidence.', zh: '硬件详情、GPU 选择，以及 bash_exec 会话证据。' },
+    hint: { en: 'Use this page when you need to confirm the hardware boundary or inspect live session output.', zh: '当你需要确认硬件边界，或排查正在运行的会话输出时，进入这里。' },
   },
   connectors_health: {
     label: { en: 'Connector Health', zh: '连接器健康' },
-    hint: { en: 'Inspect runtime connector state, bindings, and discovered targets.', zh: '检查运行时连接器状态、绑定关系与已发现目标。' },
+    hint: { en: 'Check this page when messages stop flowing, bindings look wrong, or a connector feels unstable.', zh: '当消息没有正常流转、绑定看起来不对，或某个连接器表现异常时，来这里排查。' },
   },
   diagnostics: {
     label: { en: 'Diagnostics', zh: '诊断' },
-    hint: { en: 'Manual diagnosis, failures, and runtime tool visibility.', zh: '手动诊断、失败信息与运行时工具可见性。' },
+    hint: { en: 'Run doctor, inspect failures, and verify whether the runtime tools you depend on are actually available.', zh: '在这里运行 doctor、查看失败原因，并确认你依赖的运行时工具是否真的可用。' },
   },
   errors: {
     label: { en: 'Errors', zh: '错误' },
-    hint: { en: 'Merged runtime failures, daemon errors, and degraded connector state.', zh: '汇总运行时失败、daemon 错误与连接器退化状态。' },
+    hint: { en: 'A single place to review the errors most likely to explain why the system feels broken.', zh: '把最可能解释“为什么系统不对劲”的错误集中放在一起，方便快速判断。' },
   },
   issues: {
     label: { en: 'Issue Report', zh: '问题报告' },
-    hint: { en: 'Generate a prefilled GitHub issue from local runtime evidence and submit it quickly.', zh: '基于本地运行时证据生成预填好的 GitHub issue，并快速提交。' },
+    hint: { en: 'Use the local evidence already collected here to draft a clearer issue report before you submit it.', zh: '把本地已经收集到的运行时证据整理成更清晰的问题报告，再决定是否提交。' },
   },
   logs: {
     label: { en: 'Logs', zh: '日志' },
-    hint: { en: 'Inspect whitelisted daemon, connector, and quest log tails.', zh: '查看白名单 daemon、connector 与 quest 日志 tail。' },
+    hint: { en: 'Open log tails only when you need raw evidence that the summary and diagnostics pages cannot explain.', zh: '只有当摘要页和诊断页还解释不清时，再来看原始日志证据。' },
   },
   quests: {
     label: { en: 'Quests', zh: 'Quests' },
-    hint: { en: 'Filter, inspect, and control quests from one system table.', zh: '在统一系统表里筛选、检查并控制 quests。' },
+    hint: { en: 'Move from fleet-level overview into one quest, then inspect or adjust it in more detail.', zh: '从系统总览下钻到某个 quest，再继续查看、控制或调整它。' },
   },
   repairs: {
     label: { en: 'Repairs', zh: '修复' },
-    hint: { en: 'Manage repair sessions and reopen them in Copilot.', zh: '管理修复会话，并在 Copilot 中重新打开。' },
+    hint: { en: 'Keep track of repair attempts, reopen them when needed, and avoid losing the repair context.', zh: '把修复尝试及其上下文保留下来，需要时可以重新打开继续处理。' },
   },
   controllers: {
     label: { en: 'Controllers', zh: '控制器' },
-    hint: { en: 'Run and enable built-in governance controllers.', zh: '运行并启用内建治理控制器。' },
+    hint: { en: 'Use this page when you want the system to help enforce routine governance checks for you.', zh: '当你希望系统帮你执行一些例行治理检查时，进入这里设置和运行控制器。' },
   },
   stats: {
     label: { en: 'Stats', zh: '统计' },
-    hint: { en: 'Compact distributions for quests, anchors, modes, and runners.', zh: '查看 quests、阶段、模式与 runner 的分布。' },
+    hint: { en: 'Open this page when you need the fuller distributions and trend charts behind the summary page.', zh: '当你需要从摘要页继续下钻，看更完整的分布和趋势时，打开这里。' },
   },
   search: {
     label: { en: 'Search', zh: '搜索' },
-    hint: { en: 'Search across quest summaries and recent event summaries.', zh: '跨 quest 摘要与最近事件摘要搜索。' },
+    hint: { en: 'Use search when you remember a signal, note, or event summary but not the exact quest it belongs to.', zh: '当你记得某个线索、笔记或事件摘要，但不记得它属于哪个 quest 时，用这里来找。' },
   },
 } satisfies Record<
   Exclude<SettingsSectionName, ConfigDocumentName>,
@@ -173,7 +187,7 @@ const copy = {
     title: 'Settings',
     files: 'Settings',
     admin: 'Admin',
-    adminHint: 'Operational diagnostics, supervision, and repair surfaces.',
+    adminHint: 'Start here to check system health, understand what needs attention, and open the more detailed admin pages.',
     copilot: 'Admin Copilot',
     openCopilot: 'Open Fresh Copilot',
     closeCopilot: 'Close Copilot',
@@ -199,7 +213,7 @@ const copy = {
     title: '设置',
     files: '设置',
     admin: '管理',
-    adminHint: '运维诊断、监管与修复相关页面。',
+    adminHint: '先从这里判断系统健康和当前重点，再进入更具体的运维页面继续处理。',
     copilot: 'Admin Copilot',
     openCopilot: '打开全新 Copilot',
     closeCopilot: '关闭 Copilot',
@@ -230,12 +244,23 @@ const SYNTHETIC_BASELINE_FILE: ConfigFileEntry = {
   exists: true,
 }
 
-function compareConfig(a: ConfigFileEntry, b: ConfigFileEntry) {
-  return CONFIG_ORDER.indexOf(a.name as ConfigDocumentName) - CONFIG_ORDER.indexOf(b.name as ConfigDocumentName)
+const SYNTHETIC_DEEPXIV_FILE: ConfigFileEntry = {
+  name: 'deepxiv',
+  path: 'config/deepxiv',
+  required: false,
+  exists: true,
 }
 
-function configLabel(name: ConfigDocumentName, locale: Locale) {
-  return CONFIG_META[name].label[locale]
+function compareSettings(a: ConfigFileEntry, b: ConfigFileEntry) {
+  const indexA = SETTINGS_ORDER.indexOf(a.name as (typeof SETTINGS_ORDER)[number])
+  const indexB = SETTINGS_ORDER.indexOf(b.name as (typeof SETTINGS_ORDER)[number])
+  const normalizedIndexA = indexA >= 0 ? indexA : Number.MAX_SAFE_INTEGER
+  const normalizedIndexB = indexB >= 0 ? indexB : Number.MAX_SAFE_INTEGER
+  return normalizedIndexA - normalizedIndexB
+}
+
+function configLabel(name: SettingsSectionName, locale: Locale) {
+  return SETTINGS_META[name].label[locale]
 }
 
 function sectionLabel(name: SettingsSectionName, locale: Locale) {
@@ -281,8 +306,8 @@ function connectorBindingTransitionMessage(transition: unknown, questId?: string
   return copy.en.connectorBindingSaved
 }
 
-function configHint(name: ConfigDocumentName, locale: Locale) {
-  return CONFIG_META[name].hint[locale]
+function configHint(name: SettingsSectionName, locale: Locale) {
+  return SETTINGS_META[name].hint[locale]
 }
 
 function sectionHint(name: SettingsSectionName, locale: Locale) {
@@ -432,12 +457,12 @@ export function SettingsPage({
         if (!mounted) {
           return
         }
-        const sorted = [...filePayload].sort(compareConfig)
-        setFiles([...sorted, SYNTHETIC_BASELINE_FILE].sort(compareConfig))
+        const sorted = [...filePayload].sort(compareSettings)
+        setFiles([...sorted, SYNTHETIC_BASELINE_FILE, SYNTHETIC_DEEPXIV_FILE].sort(compareSettings))
         setConnectors(connectorPayload)
         setBaselineEntries(baselinePayload)
         setQuests(questPayload)
-        const preferred = requestedConfigName || (sorted[0]?.name as ConfigDocumentName | undefined) || null
+        const preferred = requestedConfigName || (sorted[0]?.name as SettingsSectionName | undefined) || null
         if (preferred) {
           setSelectedName(preferred)
         }
@@ -688,7 +713,7 @@ export function SettingsPage({
       return files
     }
     return files.filter((item) => {
-      const name = item.name as ConfigDocumentName
+      const name = item.name as SettingsSectionName
       return `${item.name} ${item.path} ${configLabel(name, locale)} ${configHint(name, locale)}`
         .toLowerCase()
         .includes(keyword)
@@ -710,18 +735,13 @@ export function SettingsPage({
     }
   }, [filteredOperations.length, isOperationSection, search])
 
-  const adminNavItems = useMemo(
-    () => OPERATIONS_ORDER.map((name) => ({ name, label: sectionLabel(name, locale), hint: sectionHint(name, locale) })),
-    [locale]
-  )
-
   const selectedMeta =
     selectedName && selectedName in OPERATIONS_META
       ? OPERATIONS_META[selectedName as keyof typeof OPERATIONS_META]
       : selectedName && selectedName in SPECIAL_META
         ? SPECIAL_META[selectedName as keyof typeof SPECIAL_META]
         : selectedName
-          ? CONFIG_META[selectedName as ConfigDocumentName]
+          ? SETTINGS_META[selectedName as keyof typeof SETTINGS_META]
           : null
   const helpMarkdown = translateSettingsHelpMarkdown(
     locale,
@@ -779,6 +799,9 @@ export function SettingsPage({
     }
     if (selectedName === 'baselines') {
       setBaselineEntries(await client.baselines())
+      return
+    }
+    if (selectedName === 'deepxiv') {
       return
     }
     const next = await client.configDocument(selectedName)
@@ -967,7 +990,7 @@ export function SettingsPage({
             <div className="mt-5">
               <div className="mb-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">{t.files}</div>
               {filteredFiles.map((file, index) => {
-                const name = file.name as ConfigDocumentName
+                const name = file.name as SettingsSectionName
                 return (
                   <button
                     key={file.name}
@@ -1180,35 +1203,6 @@ export function SettingsPage({
                           {dockOpen ? t.closeCopilot : t.openCopilot}
                         </Button>
                       </div>
-                      <div className="mt-4 overflow-x-auto pb-1">
-                        <div className="flex min-w-max gap-2" role="tablist" aria-label={t.admin}>
-                          {adminNavItems.map((item) => (
-                            <button
-                              key={item.name}
-                              type="button"
-                              role="tab"
-                              aria-selected={selectedName === item.name}
-                              onClick={() => handleSelectSection(item.name)}
-                              data-onboarding-id={
-                                item.name === 'summary'
-                                  ? 'settings-admin-summary-tab'
-                                  : item.name === 'quests'
-                                    ? 'settings-admin-quests-tab'
-                                    : undefined
-                              }
-                              className={cn(
-                                'relative inline-flex items-center rounded-full border px-3 py-2 text-sm font-medium transition',
-                                selectedName === item.name
-                                  ? 'border-[#C7A57A] bg-[linear-gradient(180deg,rgba(222,196,158,0.28),rgba(222,196,158,0.12))] text-foreground shadow-[0_12px_24px_-18px_rgba(145,102,53,0.45)] dark:border-[#C7A57A]/70 dark:bg-[linear-gradient(180deg,rgba(199,165,122,0.18),rgba(199,165,122,0.06))]'
-                                  : 'border-black/[0.08] bg-white/65 text-muted-foreground hover:border-black/[0.12] hover:text-foreground dark:border-white/[0.08] dark:bg-white/[0.03] dark:hover:border-white/[0.14]'
-                              )}
-                              title={item.hint}
-                            >
-                              {item.label}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                     </div>
                   ) : null}
 
@@ -1240,14 +1234,89 @@ export function SettingsPage({
                     )
                   ) : null}
 
+                  {selectedName === 'summary' ? (
+                    <div className="pt-6" data-onboarding-id="settings-admin-summary-surface">
+                      <SettingsSummarySection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'runtime' ? (
+                    <div className="pt-6">
+                      <SettingsRuntimeSection />
+                    </div>
+                  ) : null}
+
                   {selectedName === 'deepxiv' ? (
                     <div className="pt-6">
                       <DeepXivSettingsPanel locale={locale} />
                     </div>
                   ) : null}
-                  {/* TODO(upstream ea21104): summary/runtime/connectors_health/diagnostics/errors/
-                      issues/logs/quests/repairs/controllers/stats/search sections were imported
-                      but never added to the tree; restore JSX once the component files land. */}
+
+                  {selectedName === 'connectors_health' ? (
+                    <div className="pt-6">
+                      <SettingsConnectorHealthSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'diagnostics' ? (
+                    <div className="pt-6">
+                      <SettingsDiagnosticsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'errors' ? (
+                    <div className="pt-6">
+                      <SettingsErrorsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'issues' ? (
+                    <div className="pt-6">
+                      <SettingsIssueReportSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'logs' ? (
+                    <div className="pt-6">
+                      <SettingsLogsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'quests' && requestedQuestId ? (
+                    <div className="pt-6">
+                      <SettingsQuestDetailSection questId={requestedQuestId} />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'quests' && !requestedQuestId ? (
+                    <div className="pt-6" data-onboarding-id="settings-admin-quests-surface">
+                      <SettingsQuestsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'repairs' ? (
+                    <div className="pt-6">
+                      <SettingsRepairsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'controllers' ? (
+                    <div className="pt-6">
+                      <SettingsControllersSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'stats' ? (
+                    <div className="pt-6">
+                      <SettingsStatsSection />
+                    </div>
+                  ) : null}
+
+                  {selectedName === 'search' ? (
+                    <div className="pt-6">
+                      <SettingsSearchSection />
+                    </div>
+                  ) : null}
 
                   {document && isConnectorDocument ? (
                     <div className="pt-6">
@@ -1325,10 +1394,10 @@ export function SettingsPage({
             </div>
           </section>
 
-          {/* TODO(upstream ea21104): <SettingsOpsRail /> — component file missing. */}
+          {dockOpen ? <SettingsOpsRail /> : null}
         </div>
       </main>
-      {/* TODO(upstream ea21104): <SettingsOpsLauncher /> — component file missing. */}
+      <SettingsOpsLauncher />
     </div>
   )
 }

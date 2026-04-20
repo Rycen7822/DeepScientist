@@ -37,7 +37,7 @@ Built-in runner status today:
 ## If you are new
 
 - [00 Quick Start](./00_QUICK_START.md)
-  Start here if you want to install DeepScientist, choose between Codex / Claude Code / OpenCode, launch it locally, and create your first project.
+  Start here if you want to install DeepScientist, choose between Codex / Claude Code / Kimi Code / OpenCode, launch it locally, and create your first project.
 - [20 Workspace Modes Guide](./20_WORKSPACE_MODES_GUIDE.md)
   Read this if you want to choose correctly between Copilot and Autonomous before creating a project.
 - [19 Local Browser Auth](./19_LOCAL_BROWSER_AUTH.md)
@@ -48,6 +48,8 @@ Built-in runner status today:
   Read this when you want to run DeepScientist through MiniMax, GLM, Volcengine Ark, Alibaba Bailian Coding Plan, or another Codex profile.
 - [24 Claude Code Setup](./24_CLAUDE_CODE_PROVIDER_SETUP.md)
   Read this when Claude Code already works on your machine and you want DeepScientist to reuse it directly.
+- [27 Kimi Code Setup](./27_KIMI_CODE_PROVIDER_SETUP.md)
+  Read this when the official Kimi Code CLI already works on your machine and you want DeepScientist to use it as a separate builtin runner.
 - [25 OpenCode Setup](./25_OPENCODE_PROVIDER_SETUP.md)
   Read this when OpenCode already works on your machine and you want DeepScientist to reuse its provider/model configuration.
 - [21 Local Model Backends Guide](./21_LOCAL_MODEL_BACKENDS_GUIDE.md)
@@ -108,6 +110,8 @@ Built-in runner status today:
   Check this if the problem is likely in your Codex profile, provider endpoint, API key, or model configuration.
 - [24 Claude Code Setup](./24_CLAUDE_CODE_PROVIDER_SETUP.md)
   Check this if the problem is likely in your Claude Code login, config directory, permission mode, or Anthropic-compatible gateway setup.
+- [27 Kimi Code Setup](./27_KIMI_CODE_PROVIDER_SETUP.md)
+  Check this if the problem is likely in your Kimi Code login, `~/.kimi` home, agent selection, or `--yolo` / thinking configuration.
 - [25 OpenCode Setup](./25_OPENCODE_PROVIDER_SETUP.md)
   Check this if the problem is likely in your OpenCode provider login, config file, model selection, agent, or variant setup.
 - [21 Local Model Backends Guide](./21_LOCAL_MODEL_BACKENDS_GUIDE.md)

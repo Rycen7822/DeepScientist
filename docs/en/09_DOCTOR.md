@@ -234,7 +234,7 @@ git config --global user.email "you@example.com"
 
 ### Runner switching and enablement
 
-Current releases support `codex`, `claude`, and `opencode`.
+Current releases support `codex`, `claude`, `kimi`, and `opencode`.
 
 If a non-default runner was enabled by mistake, check:
 

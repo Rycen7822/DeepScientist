@@ -17,7 +17,7 @@ The `Settings` page writes directly to the following files:
 | File | UI category | Purpose |
 | --- | --- | --- |
 | `~/DeepScientist/config/config.yaml` | Runtime | Main runtime config: home path, daemon, UI, logging, Git, skill sync, cloud, ACP |
-| `~/DeepScientist/config/runners.yaml` | Models | Runner config for `codex` / `claude` / `opencode`: binary path, model defaults, permissions, sandbox, retries, env |
+| `~/DeepScientist/config/runners.yaml` | Models | Runner config for `codex` / `claude` / `kimi` / `opencode`: binary path, model defaults, permissions, sandbox, retries, env |
 | `~/DeepScientist/config/connectors.yaml` | Connectors | QQ, Telegram, Discord, Slack, Feishu, WhatsApp, Lingzhu connector config |
 | `~/DeepScientist/config/plugins.yaml` | Extensions | Plugin discovery, enable/disable overrides, trust policy |
 | `~/DeepScientist/config/mcp_servers.yaml` | MCP | External MCP servers only; not built-in `memory`, `artifact`, or `bash_exec` |
@@ -109,7 +109,7 @@ acp:
 
 - Type: `string`
 - Default: `codex`
-- Allowed values: `codex`, `claude`, `opencode`
+- Allowed values: `codex`, `claude`, `kimi`, `opencode`
 - UI label: `Default runner`
 - Meaning: runner used when a project does not override it.
 - Notes: new quests inherit this default; existing quests may override it in project settings. Switch only to a runner that is enabled and already passes `ds doctor`.
@@ -421,6 +421,8 @@ Current built-in runners:
   - OpenAI Codex CLI path, including Codex-compatible provider profiles
 - `claude`
   - Claude Code CLI path, including Anthropic or compatible gateway setups that already work in Claude Code
+- `kimi`
+  - Official Kimi Code CLI path, including login state and config already working in `~/.kimi`
 - `opencode`
   - OpenCode CLI path, including provider/model configurations managed directly by OpenCode
 
@@ -515,7 +517,7 @@ opencode:
 - Type: `string`
 - UI label: `Default model`
 - Meaning: default runner model when a quest or request does not override it.
-- Default: `inherit` for all three runners.
+- Default: `inherit` for all four runners.
 - Recommended rule:
   - keep `inherit` when the CLI should decide the provider/model itself
   - set a fixed model only when you want DeepScientist to override every turn
@@ -553,6 +555,29 @@ opencode:
 - Common values: `default`, `bypassPermissions`, `dontAsk`, `acceptEdits`, `delegate`, `plan`
 - Recommended local automation default: `bypassPermissions`
 
+**`agent`**
+
+- Type: `string`
+- UI label: `Kimi agent`
+- Runners: `kimi`
+- Meaning: optional Kimi agent name passed through as `kimi --agent <name>`.
+- Leave empty unless the same agent profile already works in direct Kimi CLI usage.
+
+**`thinking`**
+
+- Type: `boolean`
+- UI label: `Thinking mode`
+- Runners: `kimi`
+- Meaning: whether DeepScientist should pass `--thinking` to Kimi by default.
+
+**`yolo`**
+
+- Type: `boolean`
+- UI label: `Yolo mode`
+- Runners: `kimi`
+- Meaning: whether DeepScientist should pass `--yolo` so Kimi does not stop for interactive approval prompts.
+- Recommended unattended local automation default: `true`
+
 **`default_agent`**
 
 - Type: `string`
@@ -577,6 +602,7 @@ opencode:
 - Common examples:
   - Codex: `OPENAI_API_KEY`, `OPENAI_BASE_URL`
   - Claude: `ANTHROPIC_API_KEY`, `ANTHROPIC_BASE_URL`, `CLAUDE_CODE_MAX_OUTPUT_TOKENS`
+  - Kimi: usually empty unless your local Kimi CLI path requires extra environment variables
   - OpenCode: provider-specific environment variables only if your OpenCode provider setup requires them
 
 **`retry_on_failure` / `retry_max_attempts` / `retry_initial_backoff_sec` / `retry_backoff_multiplier` / `retry_max_backoff_sec`**
@@ -585,7 +611,7 @@ opencode:
 - Meaning: automatic turn retry policy for the runner.
 - Defaults:
   - `codex`: more aggressive retry ladder
-  - `claude` / `opencode`: shorter ladder
+  - `claude` / `kimi` / `opencode`: shorter ladder
 
 **`mcp_tool_timeout_sec`**
 
@@ -599,12 +625,13 @@ opencode:
 - Meaning: operator-facing note.
 - Current practical meaning:
   - `codex`: primary path
-  - `claude`, `opencode`: supported experimental paths
+  - `claude`, `kimi`, `opencode`: supported experimental paths
 
 ### Practical guidance
 
 - Use `codex` if you want the most battle-tested DeepScientist path.
 - Use `claude` when Claude Code already works directly on the machine and you want Anthropic / Claude-native execution.
+- Use `kimi` when the official Kimi Code CLI already works directly on the machine and you want a separate Moonshot-native runner path.
 - Use `opencode` when your model/provider setup already works best through OpenCode.
 - `default_runner` can now be switched away from `codex` safely if the target runner is enabled and passes `ds doctor`.
 - New quests follow `config.default_runner`.

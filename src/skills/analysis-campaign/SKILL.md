@@ -309,6 +309,14 @@ Stage-end requirement:
 
 - if the campaign produced a durable cross-slice lesson, failure pattern, or comparability caveat, write at least one `memory.write(...)` before leaving the stage
 
+## Connector-facing campaign chart requirements
+
+When this stage produces campaign-facing charts or connector-ready visuals, keep the palette aligned with the system prompt Morandi plotting template.
+
+- `sage-clay` should remain the primary positive or accepted-slice color
+- `mist-stone` should remain the neutral comparison color
+- use soft greens around `#7F8F84` instead of saturated dashboard hues
+
 ## Exit criteria
 
 Exit once one of these is durably true:
