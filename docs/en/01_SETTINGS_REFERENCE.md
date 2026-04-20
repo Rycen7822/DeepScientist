@@ -707,7 +707,7 @@ claude:
   retry_backoff_multiplier: 4.0
   retry_max_backoff_sec: 600.0
   env: {}
-  status: supported_experimental
+  status: supported
 opencode:
   enabled: false
   binary: opencode
@@ -721,7 +721,7 @@ opencode:
   retry_backoff_multiplier: 4.0
   retry_max_backoff_sec: 600.0
   env: {}
-  status: supported_experimental
+  status: supported
 ```
 
 ### Editable fields
@@ -874,12 +874,11 @@ opencode:
 - Type: `string`
 - Meaning: operator-facing note.
 - Current practical meaning:
-  - `codex`: primary path
-  - `claude`, `kimi`, `opencode`: supported experimental paths
+  - `codex`, `claude`, `kimi`, `opencode`: available built-in paths
 
 ### Practical guidance
 
-- Use `codex` if you want the most battle-tested DeepScientist path.
+- Use the runner that already works on your machine and matches the provider path you want.
 - Use `claude` when Claude Code already works directly on the machine and you want Anthropic / Claude-native execution.
 - Use `kimi` when the official Kimi Code CLI already works directly on the machine and you want a separate Moonshot-native runner path.
 - Use `opencode` when your model/provider setup already works best through OpenCode.

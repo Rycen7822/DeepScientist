@@ -37,6 +37,7 @@ import type {
   ConfigFileEntry,
   ConnectorSnapshot,
   ConnectorTargetSnapshot,
+  FeedEnvelope,
   FeedItem,
   OpenDocumentPayload,
   QuestSummary,
@@ -82,6 +83,10 @@ type QqProfileStateSummary = {
 }
 
 const LOCAL_USER_SOURCE = 'tui-local'
+const TUI_RECENT_HISTORY_LIMIT = 160
+
+type RefreshEventMode = 'auto' | 'delta' | 'recent' | 'none'
+
 const CONFIG_ROOT_ENTRIES: ConfigRootEntry[] = [
   {
     id: 'connectors',
@@ -1565,7 +1570,13 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
   }, [])
 
   const refresh = useCallback(
-    async (hard = false, overrideQuestId?: string | null) => {
+    async (
+      hard = false,
+      overrideQuestId?: string | null,
+      options?: {
+        eventMode?: RefreshEventMode
+      }
+    ) => {
       const requestId = refreshRequestRef.current + 1
       refreshRequestRef.current = requestId
       try {
@@ -1617,17 +1628,27 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
         }
 
         const nextCursor = hard || currentQuestId !== activeQuestIdAtStart ? 0 : cursorRef.current
-        const [nextSession, nextEvents] = await Promise.all([
-          client.session(baseUrl, currentQuestId),
-          client.events(baseUrl, currentQuestId, nextCursor),
-        ])
+        const eventMode: RefreshEventMode =
+          options?.eventMode ??
+          (hard || currentQuestId !== activeQuestIdAtStart ? 'recent' : 'delta')
+        const sessionPromise = client.session(baseUrl, currentQuestId)
+        const eventsPromise =
+          eventMode === 'none'
+            ? Promise.resolve<FeedEnvelope | null>(null)
+            : eventMode === 'recent'
+              ? client.events(baseUrl, currentQuestId, 0, {
+                  limit: TUI_RECENT_HISTORY_LIMIT,
+                  tail: true,
+                })
+              : client.events(baseUrl, currentQuestId, nextCursor)
+        const [nextSession, nextEvents] = await Promise.all([sessionPromise, eventsPromise])
         if (requestId !== refreshRequestRef.current) {
           return
         }
-        const normalized = (nextEvents.acp_updates ?? []).map((item) => normalizeUpdate(item.params.update))
+        const normalized = (nextEvents?.acp_updates ?? []).map((item) => normalizeUpdate(item.params.update))
         setSession(nextSession)
         const baseState: FeedState =
-          hard || currentQuestId !== activeQuestIdAtStart
+          eventMode === 'recent'
             ? { history: [], pending: [] }
             : { history: historyRef.current, pending: pendingHistoryItemsRef.current }
         const nextState = applyIncomingFeedUpdates(baseState, normalized)
@@ -1635,7 +1656,7 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
         pendingHistoryItemsRef.current = nextState.pending
         setHistory(nextState.history)
         setPendingHistoryItems(nextState.pending)
-        const resolvedCursor = nextEvents.cursor ?? nextCursor
+        const resolvedCursor = nextEvents?.cursor ?? nextCursor
         setCursor(resolvedCursor)
         cursorRef.current = resolvedCursor
         setConnectionState('connected')
@@ -2333,7 +2354,7 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
 
   useEffect(() => {
     const timer = setInterval(() => {
-      void refresh(false)
+      void refresh(false, undefined, { eventMode: 'none' })
     }, 20000)
     return () => clearInterval(timer)
   }, [refresh])
@@ -2408,7 +2429,7 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
             setConnectionState('connected')
             setStatusLine(`Connected · ${activeQuestId} · ${baseUrl}`)
             if (shouldRefreshForUpdate(update)) {
-              void refresh(false)
+              void refresh(false, undefined, { eventMode: 'none' })
             }
           },
           onCursor: (nextCursor) => {
@@ -2781,7 +2802,9 @@ export const AppContainer: React.FC<{ baseUrl: string; initialQuestId?: string |
                 ? `command acknowledged: ${payload.type}`
                 : 'command accepted'
           )
-          await refresh(false, targetQuestId)
+          await refresh(false, targetQuestId, {
+            eventMode: targetQuestId && targetQuestId !== activeQuestId ? 'recent' : 'none',
+          })
           return
         }
 

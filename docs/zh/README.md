@@ -13,7 +13,7 @@ DeepScientist 灵活且易于使用，支持：
 - 本地优先、开源、一条命令安装
 - Git 驱动的 quest 仓库、Web 工作区、Studio / Canvas 与 TUI
 - 工作坊式协作：可长期自主推进，也可随时接管、协作、改代码、跑终端或记录 Notion 式笔记
-- 内建 `codex`、`claude`、`kimi`、`opencode` 四种 runner，其中 `codex` 是主路径，`claude`、`kimi` 与 `opencode` 属于 supported experimental
+- 内建 `codex`、`claude`、`kimi`、`opencode` 四种 runner
 - 兼容外部 OpenAI-compatible 模型端点
 - 你可以在任何地方使用 DeepScientist：服务器（TUI）、浏览器（Web）、手机（微信或 QQ），甚至眼镜（Rokid Glasses）
 - 每个 quest 绑定一个外部 connector

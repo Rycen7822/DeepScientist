@@ -73,7 +73,7 @@ describe('normalizeQuestAcpUpdateEnvelope', () => {
   })
 
   it('does not treat a terminal quest snapshot as running when the fetched tail lacks a done event', async () => {
-    apiGetMock.mockImplementation((url: string) => {
+    apiGetMock.mockImplementation((url: string, config?: { params?: Record<string, unknown> }) => {
       if (url === '/api/quests/q-terminal/session') {
         return Promise.resolve({
           data: {
@@ -99,6 +99,14 @@ describe('normalizeQuestAcpUpdateEnvelope', () => {
         })
       }
       if (url === '/api/quests/q-terminal/events') {
+        expect(config?.params).toMatchObject({
+          format: 'acp',
+          session_id: 'quest:q-terminal',
+          tail: 1,
+          limit: 80,
+        })
+        expect(config?.params?.after).toBeUndefined()
+        expect(config?.params?.before).toBeUndefined()
         return Promise.resolve({
           data: {
             acp_updates: [

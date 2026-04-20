@@ -29,7 +29,7 @@ def test_render_tui_uses_acp_session_and_events(monkeypatch) -> None:
                 "head": "abc123",
             }
         },
-        "http://0.0.0.0:20999/api/quests/q-001/events?after=0&format=acp&session_id=quest:q-001": {
+        "http://0.0.0.0:20999/api/quests/q-001/events?format=acp&session_id=quest:q-001&tail=1&limit=12": {
             "cursor": 2,
             "acp_updates": [
                 {
@@ -85,7 +85,7 @@ def test_render_tui_shows_latest_bash_exec_tail(monkeypatch) -> None:
                 "head": "abc123",
             }
         },
-        "http://0.0.0.0:20999/api/quests/q-001/events?after=0&format=acp&session_id=quest:q-001": {
+        "http://0.0.0.0:20999/api/quests/q-001/events?format=acp&session_id=quest:q-001&tail=1&limit=12": {
             "cursor": 5,
             "acp_updates": [
                 {

@@ -52,6 +52,7 @@ _CRASH_AUTO_RESUME_WINDOW = timedelta(hours=24)
 _JSONL_CACHE_MAX_BYTES = 4 * 1024 * 1024
 _CODEX_HISTORY_TAIL_LIMIT = 400
 _JSONL_STREAM_CHUNK_BYTES = 64 * 1024
+_JSONL_LINE_COUNT_CACHE_SUFFIX = ".linecount.json"
 _EVENTS_OVERSIZED_LINE_BYTES = 8 * 1024 * 1024
 _OVERSIZED_EVENT_PREFIX_BYTES = 4096
 _PROJECTION_SCHEMA_VERSION = 1
@@ -200,6 +201,64 @@ def _parse_jsonl_record_line_safely(
     return payload if isinstance(payload, dict) else None
 
 
+def _jsonl_line_count_cache_path(path: Path) -> Path:
+    return path.with_name(f".{path.name}{_JSONL_LINE_COUNT_CACHE_SUFFIX}")
+
+
+def _jsonl_path_state(path: Path) -> tuple[int, int, int] | None:
+    if not path.exists():
+        return None
+    stat = path.stat()
+    return (
+        stat.st_ino,
+        getattr(stat, "st_mtime_ns", int(stat.st_mtime * 1_000_000_000)),
+        stat.st_size,
+    )
+
+
+def _jsonl_line_count_from_cache(path: Path) -> int | None:
+    current_state = _jsonl_path_state(path)
+    if current_state is None:
+        return 0
+
+    cache_path = _jsonl_line_count_cache_path(path)
+    payload = read_json(cache_path, {})
+    if not isinstance(payload, dict):
+        payload = {}
+    raw_state = payload.get("state")
+    raw_total = payload.get("total")
+    if not isinstance(raw_state, (list, tuple)) or len(raw_state) != 3:
+        return None
+    try:
+        cached_state = tuple(int(item) for item in raw_state)
+        cached_total = int(raw_total)
+    except (TypeError, ValueError):
+        return None
+    if cached_total < 0:
+        return None
+    if cached_state == current_state:
+        return cached_total
+
+    # If the file only grew through append-only writes, count just the delta.
+    if cached_state[0] == current_state[0] and current_state[2] > cached_state[2]:
+        appended_count = 0
+        for relative_cursor, _payload in _iter_jsonl_records_from_offset_safely(
+            path,
+            start_offset=cached_state[2],
+        ):
+            appended_count = relative_cursor
+        total = cached_total + appended_count
+        write_json(
+            cache_path,
+            {
+                "state": list(current_state),
+                "total": total,
+            },
+        )
+        return total
+    return None
+
+
 def _tail_jsonl_records_safely(
     path: Path,
     *,
@@ -232,6 +291,9 @@ def _tail_jsonl_records_safely(
 def _count_jsonl_lines_fast(path: Path, *, chunk_size: int = 1024 * 1024) -> int:
     if not path.exists():
         return 0
+    cached_total = _jsonl_line_count_from_cache(path)
+    if cached_total is not None:
+        return cached_total
     total = 0
     last_byte = b""
     with path.open("rb") as handle:
@@ -242,9 +304,18 @@ def _count_jsonl_lines_fast(path: Path, *, chunk_size: int = 1024 * 1024) -> int
             total += chunk.count(b"\n")
             last_byte = chunk[-1:]
     if total == 0 and last_byte:
-        return 1
-    if last_byte not in {b"", b"\n"}:
+        total = 1
+    elif last_byte not in {b"", b"\n"}:
         total += 1
+    state = _jsonl_path_state(path)
+    if state is not None:
+        write_json(
+            _jsonl_line_count_cache_path(path),
+            {
+                "state": list(state),
+                "total": total,
+            },
+        )
     return total
 
 
@@ -3242,6 +3313,17 @@ class QuestService:
                     window = cached_records[-normalized_limit:]
                     has_more = cached_total > len(window)
                     return window, cached_total, has_more
+                if cached_limit < normalized_limit:
+                    window, total = _tail_jsonl_records_safely(path, limit=normalized_limit)
+                    with self._jsonl_cache_lock:
+                        self._jsonl_tail_cache[cache_key] = {
+                            "state": state,
+                            "limit": normalized_limit,
+                            "total": total,
+                            "records": list(window),
+                        }
+                    has_more = total > len(window)
+                    return list(window), total, has_more
 
             if (
                 cached_tail
@@ -3280,6 +3362,13 @@ class QuestService:
                         "total": total,
                         "records": stored_records,
                     }
+                write_json(
+                    _jsonl_line_count_cache_path(path),
+                    {
+                        "state": list(state),
+                        "total": total,
+                    },
+                )
                 selected = stored_records[-normalized_limit:]
                 has_more = total > len(selected)
                 return selected, total, has_more

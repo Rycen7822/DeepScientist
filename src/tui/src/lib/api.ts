@@ -144,8 +144,32 @@ export const client = {
       method: 'PUT',
       body: JSON.stringify({ content, revision }),
     }),
-  events: (baseUrl: string, questId: string, cursor: number) =>
-    api<FeedEnvelope>(baseUrl, `/api/quests/${questId}/events?after=${cursor}&format=acp&session_id=quest:${questId}`),
+  events: (
+    baseUrl: string,
+    questId: string,
+    cursor: number,
+    options?: {
+      before?: number | null
+      limit?: number
+      tail?: boolean
+    }
+  ) => {
+    const params = new URLSearchParams()
+    if (typeof options?.before === 'number' && Number.isFinite(options.before) && options.before > 0) {
+      params.set('before', String(Math.floor(options.before)))
+    } else {
+      params.set('after', String(cursor))
+    }
+    params.set('format', 'acp')
+    params.set('session_id', `quest:${questId}`)
+    if (typeof options?.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0) {
+      params.set('limit', String(Math.floor(options.limit)))
+    }
+    if (options?.tail) {
+      params.set('tail', '1')
+    }
+    return api<FeedEnvelope>(baseUrl, `/api/quests/${questId}/events?${params.toString()}`)
+  },
   eventsStreamUrl: (baseUrl: string, questId: string, cursor = 0) =>
     `${baseUrl}/api/quests/${questId}/events?after=${cursor}&format=acp&session_id=quest:${questId}&stream=1`,
   streamEvents: async (

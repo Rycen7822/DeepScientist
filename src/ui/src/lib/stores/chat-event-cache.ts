@@ -2,6 +2,7 @@ import type { AgentSSEEvent } from '@/lib/types/chat-events'
 
 const MAX_SESSIONS = 24
 const MAX_EVENTS_PER_SESSION = 6000
+const MAX_EVENTS_PER_QUEST_SESSION = 50000
 
 const sessionEventCache = new Map<string, AgentSSEEvent[]>()
 
@@ -45,6 +46,9 @@ const touchSession = (sessionId: string) => {
   sessionEventCache.set(sessionId, existing)
 }
 
+const maxEventsForSession = (sessionId: string) =>
+  sessionId.startsWith('quest:') ? MAX_EVENTS_PER_QUEST_SESSION : MAX_EVENTS_PER_SESSION
+
 const enforceLimits = () => {
   while (sessionEventCache.size > MAX_SESSIONS) {
     const first = sessionEventCache.keys().next().value as string | undefined
@@ -56,8 +60,9 @@ const enforceLimits = () => {
 const trimSession = (sessionId: string) => {
   const events = sessionEventCache.get(sessionId)
   if (!events) return
-  if (events.length <= MAX_EVENTS_PER_SESSION) return
-  events.splice(0, events.length - MAX_EVENTS_PER_SESSION)
+  const maxEvents = maxEventsForSession(sessionId)
+  if (events.length <= maxEvents) return
+  events.splice(0, events.length - maxEvents)
 }
 
 export const getCachedSessionEvents = (sessionId?: string | null) => {

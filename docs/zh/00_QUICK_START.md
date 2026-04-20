@@ -37,9 +37,10 @@
 
 - 安装好 Node.js `>=18.18` 和 npm `>=9`；请优先参考官方页面安装：https://nodejs.org/en/download
 - 一条已经可用的 runner 路径：
-  - `codex` 是主路径，也是目前最稳妥的路径
-  - `claude` 属于 supported experimental，并且应先在你的 shell 里直接可用
-  - `opencode` 属于 supported experimental，并且应先在你的 shell 里直接可用
+  - `codex` 应先在你的 shell 里直接可用
+  - `claude` 应先在你的 shell 里直接可用
+  - `kimi` 应先在你的 shell 里直接可用
+  - `opencode` 应先在你的 shell 里直接可用
 - 模型或 API 凭证
 - 如果任务比较重，准备好 GPU 或远程服务器
 - 如果你要长期运行，优先准备 Docker 或其他隔离环境，并准备一个非 root 账号专门启动 DeepScientist
@@ -87,11 +88,12 @@ npm install -g @researai/deepscientist
 
 这一步会把 `ds` 命令安装到你的机器上。
 
-DeepScientist 现在内建三条 runner 路径：
+DeepScientist 现在内建四条 runner 路径：
 
-- `codex`：主路径
-- `claude`：supported experimental
-- `opencode`：supported experimental
+- `codex`
+- `claude`
+- `kimi`
+- `opencode`
 
 安装相关有一个很重要的差异：
 

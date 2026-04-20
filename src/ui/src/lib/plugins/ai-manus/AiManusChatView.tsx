@@ -36,7 +36,11 @@ import { assetUrl } from '@/lib/assets'
 import { useChatSessionStore } from '@/lib/stores/session'
 import { useAgentRegistryStore } from '@/lib/stores/agent-registry'
 import { useSSESession, type SSEEventContext } from '@/lib/hooks/useSSESession'
-import { getCachedSessionEvents, replaceCachedSessionEvents } from '@/lib/stores/chat-event-cache'
+import {
+  getCachedSessionEvents,
+  mergeCachedSessionEvents,
+  replaceCachedSessionEvents,
+} from '@/lib/stores/chat-event-cache'
 import { getApiBaseUrl } from '@/lib/api/client'
 import { refreshCliServerStatus } from '@/lib/api/cli'
 import {
@@ -66,7 +70,7 @@ import {
 import {
   buildQuestSessionId,
   getQuestLatestSession,
-  getQuestSessionEventsOnly,
+  getQuestOlderSessionEvents,
   isQuestSessionId,
   resolveQuestResumeToken,
   shouldUseQuestSessionCompat,
@@ -175,6 +179,8 @@ import {
 const MAX_RENDERED_MESSAGES = 120
 // Keep scroll behavior aligned across surfaces.
 const COPILOT_VIRTUALIZE_THRESHOLD = Number.MAX_SAFE_INTEGER
+const QUEST_HISTORY_PAGE_SIZE = 200
+const QUEST_HISTORY_VIRTUALIZE_THRESHOLD = 240
 const DEFAULT_MESSAGE_HEIGHT = 120
 const AUTO_FOLLOW_THRESHOLD_PX = 120
 const APPEND_STAGGER_MS = 50
@@ -190,6 +196,16 @@ const MESSAGE_FLUSH_MS = 26
 const MAX_RECENT_FILES = 64
 const THINKING_TURN_ID = '__thinking__'
 const LOAD_FULL_HISTORY_TURN_ID = '__load_full_history__'
+
+const resolveOldestQuestCursor = (events: AgentSSEEvent[]) => {
+  for (const event of events) {
+    const seq = getEventSequence(event)
+    if (typeof seq === 'number' && Number.isFinite(seq) && seq > 0) {
+      return seq
+    }
+  }
+  return null
+}
 
 const CLI_OFFLINE_MESSAGE = 'CLI server offline. Please ensure the CLI is running.'
 
@@ -1896,6 +1912,7 @@ export function AiManusChatView({
   const [isNearBottom, setIsNearBottom] = useState(true)
   const isNearBottomRef = useRef(true)
   const initialScrollDoneRef = useRef(false)
+  const pendingOlderHistoryRestoreRef = useRef(false)
   const lastMessageIdRef = useRef<string | null>(null)
   const composerRef = useRef<HTMLTextAreaElement | null>(null)
   const composerFocusRef = useRef<(() => void) | null>(null)
@@ -1954,6 +1971,7 @@ export function AiManusChatView({
     : 'max-w-[768px]'
   const isCopilotSurface = uiSurface === 'copilot'
   const virtualizeThreshold = COPILOT_VIRTUALIZE_THRESHOLD
+  const isQuestHistorySession = Boolean(sessionId && isQuestSessionId(sessionId))
   const listPaddingClass = flushLayoutPadding
     ? 'px-0'
     : isCopilotSurface
@@ -2648,6 +2666,7 @@ export function AiManusChatView({
     attachmentsSeenRef.current = new Set()
     sizeMapRef.current.clear()
     listResetIndexRef.current = null
+    pendingOlderHistoryRestoreRef.current = false
     if (listResetRafRef.current) {
       window.cancelAnimationFrame(listResetRafRef.current)
       listResetRafRef.current = null
@@ -2716,6 +2735,7 @@ export function AiManusChatView({
     setRestoreAttempted(false)
     fullHistoryModeRef.current = false
     fullHistoryRequestRef.current = false
+    pendingOlderHistoryRestoreRef.current = false
     setHistoryTruncated(false)
     setHistoryLimit(null)
     setHistoryLoadingFull(false)
@@ -8046,68 +8066,6 @@ export function AiManusChatView({
         if (fullHistoryRequest) {
           fullHistoryRequestRef.current = false
         }
-        if (isQuestSessionId(sessionId) && !hasCachedEvents) {
-          const questEvents = await getQuestSessionEventsOnly(
-            sessionId,
-            wantsFullHistory ? { full: true } : undefined
-          )
-          if (!active) return
-          const orderedEvents = sortHydratedEvents(questEvents)
-          virtualizeRestoreRef.current = orderedEvents.length >= virtualizeThreshold
-          setHistoryTruncated(false)
-          setHistoryLimit(wantsFullHistory ? null : orderedEvents.length || null)
-          const renamed = getRenamedTitle(sessionId)
-          resetConversation({ title: renamed || seededTitle })
-          setRealTime(false)
-          realTimeRef.current = false
-          restoringRef.current = true
-          restoredStatusRef.current = normalizeSessionStatus(sessionMeta?.status ?? null)
-          try {
-            replaceCachedSessionEvents(sessionId, orderedEvents)
-            if (orderedEvents.length === 0) {
-              setLastEventId(sessionId, null)
-            } else {
-              const questResumeToken = resolveQuestResumeToken(orderedEvents)
-              if (questResumeToken) {
-                setLastEventId(sessionId, questResumeToken)
-              }
-            }
-            const handler = handleEventRef.current ?? handleEvent
-            if (handler) {
-              cacheReplayRef.current = true
-              try {
-                for (const event of orderedEvents) {
-                  handler(event)
-                }
-              } finally {
-                cacheReplayRef.current = false
-              }
-            }
-          } finally {
-            restoringRef.current = false
-            restoredStatusRef.current = null
-            flushPendingMessages()
-            flushRestoreStreamQueue()
-            setRealTime(true)
-            realTimeRef.current = true
-          }
-          const normalizedQuestStatus = normalizeSessionStatus(sessionMeta?.status ?? null)
-          const shouldResumeQuest =
-            Boolean(sessionMeta?.is_active) || isSessionStatusActive(normalizedQuestStatus)
-          if (shouldResumeQuest) {
-            void sendMessage({
-              sessionId,
-              message: '',
-              surface: sessionSurface,
-              executionTarget: executionTargetRef.current,
-              cliServerId: cliServerIdRef.current,
-              replayFromLastEvent: true,
-            }).catch((error) => {
-              console.warn('[AiManus] Failed to resume quest stream', error)
-            })
-          }
-          return
-        }
         const session = await getSession(sessionId, wantsFullHistory ? { full: true } : undefined)
         if (!active || !session) {
           if (active) {
@@ -8517,8 +8475,10 @@ export function AiManusChatView({
     }
     return displayMessages
   }, [displayMessages, leadMessage, showLeadMessage])
+  const effectiveVirtualizeThreshold =
+    isQuestHistorySession ? QUEST_HISTORY_VIRTUALIZE_THRESHOLD : virtualizeThreshold
   const isVirtualized =
-    virtualizeRestoreRef.current || decoratedMessages.length >= virtualizeThreshold
+    virtualizeRestoreRef.current || decoratedMessages.length >= effectiveVirtualizeThreshold
   const visibleMessages = useMemo(() => {
     if (isVirtualized || showFullHistory) return decoratedMessages
     if (decoratedMessages.length <= MAX_RENDERED_MESSAGES) return decoratedMessages
@@ -8651,11 +8611,43 @@ export function AiManusChatView({
     setHasNewMessagesSafe(false)
   }, [scrollToBottom, setHasNewMessagesSafe, setIsNearBottom])
 
-  const handleLoadFullHistory = useCallback(() => {
+  const handleLoadFullHistory = useCallback(async () => {
     if (!sessionId || historyLoadingFull || isRestoring) return
-    fullHistoryRequestRef.current = true
+    if (!isQuestSessionId(sessionId)) {
+      fullHistoryRequestRef.current = true
+      setHistoryLoadingFull(true)
+      requestRestore()
+      return
+    }
+
+    const cachedEvents = sortHydratedEvents([...(getCachedSessionEvents(sessionId) ?? [])])
+    const beforeCursor = resolveOldestQuestCursor(cachedEvents)
+    if (!beforeCursor || beforeCursor <= 1) {
+      setHistoryTruncated(false)
+      setShowFullHistory(true)
+      return
+    }
+
     setHistoryLoadingFull(true)
-    requestRestore()
+    try {
+      const olderPage = await getQuestOlderSessionEvents(sessionId, beforeCursor, QUEST_HISTORY_PAGE_SIZE)
+      if (olderPage.events.length > 0) {
+        mergeCachedSessionEvents(sessionId, olderPage.events)
+        setHistoryLimit((current) =>
+          typeof current === 'number' && current > 0
+            ? current + olderPage.events.length
+            : cachedEvents.length + olderPage.events.length
+        )
+        setShowFullHistory(true)
+        pendingOlderHistoryRestoreRef.current = true
+      }
+      setHistoryTruncated(olderPage.hasMore)
+      requestRestore()
+    } catch (error) {
+      console.warn('[AiManus] Failed to load older quest history', error)
+    } finally {
+      setHistoryLoadingFull(false)
+    }
   }, [historyLoadingFull, isRestoring, requestRestore, sessionId])
 
   useLayoutEffect(() => {
@@ -8673,9 +8665,20 @@ export function AiManusChatView({
       ? Boolean(listRef.current && listOuterRef.current && listHeight > 0)
       : Boolean(scrollRef.current)
     if (!canScroll) return
-    scrollToBottom('auto')
-    isNearBottomRef.current = true
-    setIsNearBottom(true)
+    if (pendingOlderHistoryRestoreRef.current) {
+      if (isVirtualized) {
+        listRef.current?.scrollToItem(0, 'start')
+      } else if (scrollRef.current) {
+        scrollRef.current.scrollTo({ top: 0, behavior: 'auto' })
+      }
+      pendingOlderHistoryRestoreRef.current = false
+      isNearBottomRef.current = false
+      setIsNearBottom(false)
+    } else {
+      scrollToBottom('auto')
+      isNearBottomRef.current = true
+      setIsNearBottom(true)
+    }
     setHasNewMessagesSafe(false)
     initialScrollDoneRef.current = true
   }, [
@@ -8824,10 +8827,18 @@ export function AiManusChatView({
     (turn: ChatTurn) => {
       if (turn.id === LOAD_FULL_HISTORY_TURN_ID) {
         const limitLabel =
-          typeof historyLimit === 'number' && historyLimit > 0
+          isQuestHistorySession && showFullHistory && typeof historyLimit === 'number' && historyLimit > 0
+            ? `Loaded ${historyLimit} messages.`
+            : typeof historyLimit === 'number' && historyLimit > 0
             ? `Showing latest ${historyLimit} messages.`
             : 'Showing recent messages.'
-        const buttonLabel = historyLoadingFull ? 'Loading full history...' : 'Load full history'
+        const buttonLabel = historyLoadingFull
+          ? isQuestHistorySession
+            ? 'Loading older messages...'
+            : 'Loading full history...'
+          : isQuestHistorySession
+            ? 'Load older messages'
+            : 'Load full history'
         return (
           <div key={turn.id} className="flex w-full justify-center">
             <div
@@ -8864,7 +8875,16 @@ export function AiManusChatView({
         </div>
       )
     },
-    [handleLoadFullHistory, historyLimit, historyLoadingFull, isCopilotSurface, isAssistantBlock, renderBlock]
+    [
+      handleLoadFullHistory,
+      historyLimit,
+      historyLoadingFull,
+      isCopilotSurface,
+      isAssistantBlock,
+      isQuestHistorySession,
+      renderBlock,
+      showFullHistory,
+    ]
   )
 
   const resolveOnlineCliServerId = useCallback(() => {

@@ -28,12 +28,12 @@ AI Scientist and AutoFigure projects worth exploring alongside DeepScientist:
 
 This page is the shortest path to the right document.
 
-Built-in runner status today:
+Built-in runners today:
 
-- `codex`: primary path
-- `claude`: supported experimental
-- `kimi`: supported experimental
-- `opencode`: supported experimental
+- `codex`
+- `claude`
+- `kimi`
+- `opencode`
 
 ## If you are new
 

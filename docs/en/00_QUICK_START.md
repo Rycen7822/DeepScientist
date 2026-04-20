@@ -37,10 +37,10 @@ Prepare these first:
 
 - Node.js `>=18.18` and npm `>=9`; install them from the official download page: https://nodejs.org/en/download
 - one working runner path:
-  - `codex` is the primary and most battle-tested path
-  - `claude` is supported experimental and should already work as `claude` in your shell
-  - `kimi` is supported experimental and should already work as `kimi` in your shell
-  - `opencode` is supported experimental and should already work as `opencode` in your shell
+  - `codex` should already work as `codex` in your shell
+  - `claude` should already work as `claude` in your shell
+  - `kimi` should already work as `kimi` in your shell
+  - `opencode` should already work as `opencode` in your shell
 - a model or API credential if your project needs external inference
 - GPU or server access if your experiments are compute-heavy
 - if you plan to run DeepScientist for real work, prepare Docker or another isolated environment and a dedicated non-root user
@@ -91,10 +91,10 @@ This installs the `ds` command globally.
 
 DeepScientist ships four built-in runner paths:
 
-- `codex`: primary path
-- `claude`: supported experimental
-- `kimi`: supported experimental
-- `opencode`: supported experimental
+- `codex`
+- `claude`
+- `kimi`
+- `opencode`
 
 Important installation detail:
 

@@ -31,7 +31,7 @@
 </p>
 
 <p align="center">
-  <strong>Built-in runners: Codex (primary), Claude Code (supported experimental), OpenCode (supported experimental)</strong>
+  <strong>Built-in runners: Codex, Claude Code, Kimi Code, OpenCode</strong>
 </p>
 
 <p align="center">
@@ -259,11 +259,12 @@ If you want to try it right now, here is the shortest path:
 
 Platform note: DeepScientist fully supports Linux and macOS. Native Windows support is currently experimental (strongly recommend WSL2).
 
-DeepScientist ships three built-in runners:
+DeepScientist ships four built-in runners:
 
-- `codex`: the primary and most battle-tested path
-- `claude`: supported experimental; use this when `claude` already works directly on your machine
-- `opencode`: supported experimental; use this when `opencode` already works directly on your machine
+- `codex`: use this when `codex` already works directly on your machine
+- `claude`: use this when `claude` already works directly on your machine
+- `kimi`: use this when `kimi` already works directly on your machine
+- `opencode`: use this when `opencode` already works directly on your machine
 
 If one of these CLIs already works for you, DeepScientist can usually meet you there instead of asking you to rebuild your whole setup first.
 

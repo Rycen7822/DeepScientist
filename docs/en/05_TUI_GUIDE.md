@@ -124,6 +124,7 @@ You should then see:
 
 - the quest is already bound
 - the history area starts showing messages, artifacts, or operations
+- on long-running quests, TUI restores a recent history window first so reopening stays responsive, then continues streaming new events from the latest cursor
 - the status line shows the active quest id
 
 ### Step 4. Send one normal message

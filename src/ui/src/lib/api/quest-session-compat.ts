@@ -657,15 +657,28 @@ async function fetchQuestSessionPayload(questId: string) {
 
 async function fetchQuestEventEnvelope(
   questId: string,
-  after: number
+  options: {
+    after?: number
+    before?: number
+    limit: number
+    tail?: boolean
+  }
 ): Promise<FeedEnvelope> {
+  const params: Record<string, unknown> = {
+    limit: options.limit,
+    format: 'acp',
+    session_id: buildQuestSessionId(questId),
+  }
+  if (typeof options.before === 'number' && Number.isFinite(options.before) && options.before > 0) {
+    params.before = Math.floor(options.before)
+  } else {
+    params.after = Math.floor(options.after ?? 0)
+  }
+  if (options.tail) {
+    params.tail = 1
+  }
   const response = await apiClient.get<FeedEnvelope>(`/api/quests/${questId}/events`, {
-    params: {
-      after,
-      limit: QUEST_HISTORY_PAGE_SIZE,
-      format: 'acp',
-      session_id: buildQuestSessionId(questId),
-    },
+    params,
     timeout: QUEST_HEAVY_REQUEST_TIMEOUT_MS,
   })
   return response.data
@@ -680,20 +693,45 @@ async function fetchQuestNormalizedEvents(
     typeof options?.limit === 'number' && Number.isFinite(options.limit) && options.limit > 0
       ? Math.floor(options.limit)
       : QUEST_DEFAULT_LIMIT
-  const events: AgentSSEEvent[] = []
-  let cursor = 0
-  let batches = 0
-  let hasMore = true
+
+  if (!full) {
+    const payload = await fetchQuestEventEnvelope(questId, {
+      limit: requestedLimit,
+      tail: true,
+    })
+    return {
+      events: (payload.acp_updates ?? []).flatMap((item) => normalizeQuestAcpUpdateEnvelope(item)),
+      cursor: typeof payload.cursor === 'number' ? payload.cursor : 0,
+      fetchedAll: !payload.has_more,
+      requestedLimit,
+    }
+  }
+
+  const latestPayload = await fetchQuestEventEnvelope(questId, {
+    limit: QUEST_HISTORY_PAGE_SIZE,
+    tail: true,
+  })
+  let events = (latestPayload.acp_updates ?? []).flatMap((item) => normalizeQuestAcpUpdateEnvelope(item))
+  const cursor = typeof latestPayload.cursor === 'number' ? latestPayload.cursor : 0
+  let before =
+    typeof latestPayload.oldest_cursor === 'number' && Number.isFinite(latestPayload.oldest_cursor)
+      ? latestPayload.oldest_cursor
+      : null
+  let batches = 1
+  let hasMore = Boolean(latestPayload.has_more) && before !== null && before > 1
 
   while (hasMore && batches < QUEST_HISTORY_MAX_BATCHES) {
-    const payload = await fetchQuestEventEnvelope(questId, cursor)
+    const payload = await fetchQuestEventEnvelope(questId, {
+      before: before ?? undefined,
+      limit: QUEST_HISTORY_PAGE_SIZE,
+    })
     const nextBatch = (payload.acp_updates ?? []).flatMap((item) => normalizeQuestAcpUpdateEnvelope(item))
-    events.push(...nextBatch)
-    if (!full && events.length > requestedLimit) {
-      events.splice(0, events.length - requestedLimit)
-    }
-    cursor = typeof payload.cursor === 'number' ? payload.cursor : cursor
-    hasMore = Boolean(payload.has_more)
+    events = [...nextBatch, ...events]
+    before =
+      typeof payload.oldest_cursor === 'number' && Number.isFinite(payload.oldest_cursor)
+        ? payload.oldest_cursor
+        : null
+    hasMore = Boolean(payload.has_more) && before !== null && before > 1
     batches += 1
   }
 
@@ -815,16 +853,36 @@ export async function getQuestSession(
   })
 }
 
-export async function getQuestSessionEventsOnly(
+export async function getQuestOlderSessionEvents(
   sessionId: string,
-  options?: { full?: boolean; limit?: number }
-): Promise<AgentSSEEvent[]> {
+  beforeCursor: number,
+  limit = QUEST_HISTORY_PAGE_SIZE
+): Promise<{
+  events: AgentSSEEvent[]
+  oldestCursor: number | null
+  newestCursor: number | null
+  hasMore: boolean
+}> {
   const questId = getQuestIdFromSessionId(sessionId)
   if (!questId) {
     throw new Error(`Invalid quest session id: ${sessionId}`)
   }
-  const history = await fetchQuestNormalizedEvents(questId, options)
-  return history.events
+  const payload = await fetchQuestEventEnvelope(questId, {
+    before: beforeCursor,
+    limit,
+  })
+  return {
+    events: (payload.acp_updates ?? []).flatMap((item) => normalizeQuestAcpUpdateEnvelope(item)),
+    oldestCursor:
+      typeof payload.oldest_cursor === 'number' && Number.isFinite(payload.oldest_cursor)
+        ? payload.oldest_cursor
+        : null,
+    newestCursor:
+      typeof payload.newest_cursor === 'number' && Number.isFinite(payload.newest_cursor)
+        ? payload.newest_cursor
+        : null,
+    hasMore: Boolean(payload.has_more),
+  }
 }
 
 export async function getQuestLatestSession(

@@ -4,6 +4,8 @@ import json
 import time
 from urllib.request import urlopen
 
+_RECENT_EVENT_LIMIT = 12
+
 
 def _get_json(url: str):
     with urlopen(url) as response:  # noqa: S310
@@ -93,9 +95,14 @@ def render_tui(base_url: str, *, quest_id: str | None = None, cursor: int = 0) -
     feed_payload = {"cursor": cursor, "acp_updates": []}
     if active_quest_id:
         session_payload = _get_json(f"{base_url}/api/quests/{active_quest_id}/session")
-        feed_payload = _get_json(
-            f"{base_url}/api/quests/{active_quest_id}/events?after={cursor}&format=acp&session_id=quest:{active_quest_id}"
-        )
+        if cursor > 0:
+            feed_payload = _get_json(
+                f"{base_url}/api/quests/{active_quest_id}/events?after={cursor}&format=acp&session_id=quest:{active_quest_id}"
+            )
+        else:
+            feed_payload = _get_json(
+                f"{base_url}/api/quests/{active_quest_id}/events?format=acp&session_id=quest:{active_quest_id}&tail=1&limit={_RECENT_EVENT_LIMIT}"
+            )
 
     lines = [
         "DeepScientist TUI",

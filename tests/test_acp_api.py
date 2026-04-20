@@ -6,7 +6,7 @@ from deepscientist.config import ConfigManager
 from deepscientist.daemon import DaemonApp
 from deepscientist.home import ensure_home_layout, repo_root
 from deepscientist.quest import QuestService
-from deepscientist.shared import append_jsonl
+from deepscientist.shared import append_jsonl, read_json
 from deepscientist.skills import SkillInstaller
 
 
@@ -121,6 +121,86 @@ def test_acp_event_polling_supports_loading_older_pages(temp_home: Path) -> None
         if update["params"]["update"]["kind"] == "message"
     ]
     assert older_messages == ["message-3", "message-4"]
+
+
+def test_acp_tail_requests_can_expand_recent_window_after_smaller_tail_cache(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create("acp expanding tail quest")
+    quest_id = quest["quest_id"]
+    app = DaemonApp(temp_home)
+
+    for index in range(1, 9):
+        app.quest_service.append_message(
+            quest_id,
+            role="assistant" if index % 2 == 0 else "user",
+            content=f"message-{index}",
+            source="local:default",
+        )
+
+    smaller_tail = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=3&tail=1",
+    )
+    assert smaller_tail["oldest_cursor"] == 6
+    assert smaller_tail["newest_cursor"] == 8
+
+    larger_tail = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=5&tail=1",
+    )
+    assert larger_tail["oldest_cursor"] == 4
+    assert larger_tail["newest_cursor"] == 8
+    messages = [
+        update["params"]["update"]["message"]["content"]
+        for update in larger_tail["acp_updates"]
+        if update["params"]["update"]["kind"] == "message"
+    ]
+    assert messages == ["message-4", "message-5", "message-6", "message-7", "message-8"]
+
+
+def test_acp_tail_requests_persist_and_extend_line_count_cache(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    ConfigManager(temp_home).ensure_files()
+    quest = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home)).create("acp line count cache quest")
+    quest_id = quest["quest_id"]
+    quest_root = Path(quest["quest_root"])
+    app = DaemonApp(temp_home)
+
+    for index in range(1, 6):
+        app.quest_service.append_message(
+            quest_id,
+            role="assistant" if index % 2 == 0 else "user",
+            content=f"message-{index}",
+            source="local:default",
+        )
+
+    first_tail = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=2&tail=1",
+    )
+    assert first_tail["oldest_cursor"] == 4
+    assert first_tail["newest_cursor"] == 5
+
+    line_count_cache_path = quest_root / ".ds" / ".events.jsonl.linecount.json"
+    cache_payload = read_json(line_count_cache_path, {})
+    assert cache_payload["total"] == 5
+
+    app.quest_service.append_message(
+        quest_id,
+        role="assistant",
+        content="message-6",
+        source="local:default",
+    )
+    second_tail = app.handlers.quest_events(
+        quest_id,
+        path=f"/api/quests/{quest_id}/events?format=acp&session_id=session:test&limit=3&tail=1",
+    )
+    assert second_tail["oldest_cursor"] == 4
+    assert second_tail["newest_cursor"] == 6
+
+    updated_cache_payload = read_json(line_count_cache_path, {})
+    assert updated_cache_payload["total"] == 6
 
 
 def test_acp_event_polling_skips_corrupted_older_history_lines(temp_home: Path) -> None:

@@ -471,7 +471,7 @@ claude:
   retry_backoff_multiplier: 4.0
   retry_max_backoff_sec: 600.0
   env: {}
-  status: supported_experimental
+  status: supported
 opencode:
   enabled: false
   binary: opencode
@@ -485,7 +485,7 @@ opencode:
   retry_backoff_multiplier: 4.0
   retry_max_backoff_sec: 600.0
   env: {}
-  status: supported_experimental
+  status: supported
 ```
 
 ### 页面可编辑字段
@@ -639,11 +639,11 @@ opencode:
 - 类型：`string`
 - 作用：写给操作者的备注。
 - 当前实际含义：
-  - `codex`：主路径
-  - `claude`、`kimi`、`opencode`：supported experimental
+  - `codex`、`claude`、`kimi`、`opencode`：可用的内建路径
 
 ### 常见建议
 
+- 优先选择你本机已经跑通、也最符合当前 provider 配置的 runner。
 - 如果你想走最稳妥路径，用 `codex`。
 - 如果 Claude Code 在本机已经直接可用，且你希望走 Anthropic / Claude 原生路径，用 `claude`。
 - 如果官方 Kimi Code CLI 在本机已经直接可用，且你希望走独立的 Moonshot 原生路径，用 `kimi`。

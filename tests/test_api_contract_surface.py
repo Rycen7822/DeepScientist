@@ -398,7 +398,9 @@ def test_tui_client_and_git_canvas_follow_same_protocol_contract() -> None:
     canvas_source = _read("src/ui/src/components/git/GitResearchCanvas.tsx")
 
     tui_fragments = [
-        "/api/quests/${questId}/events?after=${cursor}&format=acp&session_id=quest:${questId}",
+        "/api/quests/${questId}/events?${params.toString()}",
+        "params.set('session_id', `quest:${questId}`)",
+        "params.set('tail', '1')",
         "text/event-stream",
         "stream=1",
         "/api/connectors",
@@ -428,6 +430,12 @@ def test_tui_client_and_git_canvas_follow_same_protocol_contract() -> None:
     assert "target.pathname = `/projects/${questId}`" in tui_app_source
     assert "client.configFiles(baseUrl)" in tui_app_source
     assert "stringifyStructured" in tui_app_source
+    assert "TUI_RECENT_HISTORY_LIMIT" in tui_app_source
+    assert "tail: true" in tui_app_source
+    assert "eventMode: 'none'" in tui_app_source
+    ai_manus_source = _read("src/ui/src/lib/plugins/ai-manus/AiManusChatView.tsx")
+    assert "getQuestOlderSessionEvents" in ai_manus_source
+    assert "Load older messages" in ai_manus_source
     assert "openConfigBrowser" in tui_app_source
     assert "searchParams.set('quest'" not in tui_app_source
     assert "BashExecOperationMessage" in tui_history_source
