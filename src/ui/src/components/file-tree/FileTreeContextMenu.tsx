@@ -85,9 +85,6 @@ export interface FileTreeContextMenuProps {
   /** Callback when the node should be revealed in the full explorer */
   onRevealInExplorer?: (node: FileNode) => void;
 
-  /** Callback when the node's containing folder should be opened */
-  onOpenContainingFolder?: (node: FileNode) => void;
-
   /** When true, show only non-mutating actions (open/download). */
   readOnly?: boolean;
 }
@@ -152,7 +149,6 @@ export function FileTreeContextMenu({
   onCompileLatexSource,
   onRequestDelete,
   onRevealInExplorer,
-  onOpenContainingFolder,
   readOnly = false,
 }: FileTreeContextMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -173,7 +169,6 @@ export function FileTreeContextMenu({
   const isTexFile =
     node.data.type === "file" && node.data.name.toLowerCase().endsWith(".tex");
   const readOnlyMode = Boolean(readOnly);
-  const hasContainingFolder = Boolean(node.data.parentId);
   const hasProjectPath = Boolean(node.data.path || node.data.name);
 
   // Close on click outside
@@ -330,11 +325,6 @@ export function FileTreeContextMenu({
     onClose();
   };
 
-  const handleOpenContainingFolder = () => {
-    onOpenContainingFolder?.(node.data);
-    onClose();
-  };
-
   const handleCopyPath = async () => {
     const projectPath = toProjectRelativeDisplayPath(node.data.path || node.data.name);
     const copied = await copyToClipboard(projectPath);
@@ -408,12 +398,6 @@ export function FileTreeContextMenu({
         label={t("explorer_reveal_in_files", undefined, "Reveal in Explorer")}
         onClick={handleRevealInExplorer}
         disabled={!onRevealInExplorer}
-      />
-      <MenuItem
-        icon={FolderOpenIcon}
-        label={t("explorer_open_containing_folder", undefined, "Open containing folder")}
-        onClick={handleOpenContainingFolder}
-        disabled={!onOpenContainingFolder || !hasContainingFolder}
       />
       <MenuItem
         icon={CopyIcon}

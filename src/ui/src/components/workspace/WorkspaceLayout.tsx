@@ -2333,24 +2333,6 @@ function LeftPanel({
     [findNodeByPath, findTreeNode, revealNodeInFilesExplorer]
   )
 
-  const handleOpenContainingFolder = React.useCallback(
-    (node: FileNode) => {
-      if (node.parentId) {
-        const liveParent = findTreeNode(node.parentId)
-        if (liveParent) {
-          revealNodeInFilesExplorer(liveParent, { fallbackPath: liveParent.path || liveParent.name })
-          return
-        }
-      }
-
-      const normalizedPath = normalizeProjectRelativePath(node.path || '')
-      const parentPath = normalizedPath.split('/').slice(0, -1).join('/')
-      const parentNode = parentPath ? findNodeByPath(parentPath) : null
-      revealNodeInFilesExplorer(parentNode, { fallbackPath: parentPath })
-    },
-    [findNodeByPath, findTreeNode, revealNodeInFilesExplorer]
-  )
-
   const isArxivView = activeExplorer === 'arxiv'
   const isFilesView = activeExplorer === 'files'
   const isScopeView = activeExplorer === 'scope'
@@ -2680,7 +2662,6 @@ function LeftPanel({
                 onFileOpen={handleFileOpen}
                 onFileDownload={handleFileDownload}
                 onRevealInExplorer={handleRevealNodeInExplorer}
-                onOpenContainingFolder={handleOpenContainingFolder}
                 className="flex-1 min-h-0"
                 readOnly={readOnlyMode}
                 hideDotfiles={hideDotfilesEffective}
@@ -2704,7 +2685,6 @@ function LeftPanel({
                 onFileOpen={handleFileOpen}
                 onFileDownload={handleFileDownload}
                 onRevealInExplorer={handleRevealNodeInExplorer}
-                onOpenContainingFolder={handleOpenContainingFolder}
                 className="flex-1 min-h-0"
                 readOnly
                 hideDotfiles

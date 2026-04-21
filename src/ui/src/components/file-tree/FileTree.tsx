@@ -35,9 +35,6 @@ export interface FileTreeProps {
   /** Callback when a node should be revealed in the full explorer */
   onRevealInExplorer?: (node: FileNode) => void;
 
-  /** Callback when a node's parent folder should be opened in the full explorer */
-  onOpenContainingFolder?: (node: FileNode) => void;
-
   /** Additional class names */
   className?: string;
 
@@ -111,7 +108,6 @@ export function FileTree({
   onFileOpen,
   onFileDownload,
   onRevealInExplorer,
-  onOpenContainingFolder,
   className,
   height = "100%",
   rowHeight = 28,
@@ -792,7 +788,6 @@ export function FileTree({
           onOpen={onFileOpen}
           onDownload={onFileDownload}
           onRevealInExplorer={onRevealInExplorer}
-          onOpenContainingFolder={onOpenContainingFolder}
           onNewFile={(parentId) => {
             setCreateFileState({ open: true, parentId });
           }}

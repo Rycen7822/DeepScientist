@@ -82,7 +82,7 @@ test.describe('copilot workspace', () => {
     await expect(visibleExplorerPanel.getByText('SUMMARY.md', { exact: true })).toBeVisible({ timeout: 15_000 })
   })
 
-  test('supports explorer path jumping, reveal scrolling, and open containing folder', async ({ page }) => {
+  test('supports explorer path jumping and reveal scrolling', async ({ page }) => {
     await page.goto(`/projects/${fixture.quest_id}`)
 
     const pathInput = page.locator('[data-explorer-path-input="true"]')
@@ -116,16 +116,6 @@ test.describe('copilot workspace', () => {
     const scrollTop = await treeScroll.evaluate((node) => node.scrollTop)
     expect(scrollTop).toBeGreaterThan(0)
 
-    const finalNoteNode = page
-      .locator('.file-tree-node')
-      .filter({ has: page.getByText('final-note.md', { exact: true }) })
-      .first()
-    await finalNoteNode.click({ button: 'right' })
-    await page.getByRole('button', { name: /Open containing folder|打开所在文件夹/ }).click()
-
-    await expect(page.locator('.file-tree-node.is-selected').filter({ hasText: 'gamma' }).first()).toBeVisible({
-      timeout: 15_000,
-    })
   })
 
   test('reveals hidden files from the explorer path bar and unhides dotfiles when needed', async ({ page }) => {
