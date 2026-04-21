@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -80,6 +82,7 @@ class OpenCodeRunner(SimpleCliRunner):
                 source_config = {}
         _copy_opencode_tree(config_home / "skills", source_root / "skills", quest_root / ".opencode" / "skills")
         permission_mode = str(resolved_runner_config.get("permission_mode") or "allow").strip().lower() or "allow"
+        pythonpath = str(os.environ.get("PYTHONPATH") or "").strip()
         shared_env = ensure_utf8_subprocess_env({
             "DEEPSCIENTIST_HOME": str(self.home),
             "DEEPSCIENTIST_REPO_ROOT": str(self.repo_root),
@@ -96,6 +99,8 @@ class OpenCodeRunner(SimpleCliRunner):
         custom_profile = resolve_mcp_tool_profile_for_quest(quest_root)
         if custom_profile:
             shared_env["DS_CUSTOM_PROFILE"] = custom_profile
+        if pythonpath:
+            shared_env["PYTHONPATH"] = pythonpath
         server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
         merged_config = {
             **source_config,
@@ -106,7 +111,7 @@ class OpenCodeRunner(SimpleCliRunner):
                         "type": "local",
                         "enabled": True,
                         "command": [
-                            "python",
+                            sys.executable,
                             "-m",
                             "deepscientist.mcp.server",
                             "--namespace",
@@ -358,6 +363,37 @@ class OpenCodeRunner(SimpleCliRunner):
                         "stream_id": session_id,
                         "message_id": message_id,
                         "kind": event_type,
+                        "created_at": created_at,
+                    }
+                )
+            return events, texts
+
+        if event_type == "error":
+            error = record.get("error") if isinstance(record.get("error"), dict) else payload.get("error")
+            if isinstance(error, dict):
+                details = error.get("data") if isinstance(error.get("data"), dict) else {}
+                message = str(
+                    error.get("message")
+                    or details.get("message")
+                    or details.get("responseBody")
+                    or payload.get("message")
+                    or raw_line
+                ).strip()
+            else:
+                message = str(error or payload.get("message") or raw_line).strip()
+            if message:
+                translation_state["fatal_error"] = message
+                events.append(
+                    {
+                        "event_id": generate_id("evt"),
+                        "type": "runner.error",
+                        "quest_id": quest_id,
+                        "run_id": run_id,
+                        "source": self.runner_name,
+                        "skill_id": skill_id,
+                        "text": message,
+                        "stream_id": session_id,
+                        "message_id": message_id,
                         "created_at": created_at,
                     }
                 )

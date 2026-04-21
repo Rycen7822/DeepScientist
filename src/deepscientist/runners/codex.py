@@ -101,6 +101,28 @@ _PROVIDER_ENV_CONFLICT_KEYS = (
     "OPENAI_BASE_URL",
 )
 _CHAT_WIRE_TOOL_CALL_GUARD_MARKER = "## Codex Chat-Wire Tool Call Compatibility"
+_WINDOWS_GBK_SAFE_REPLACEMENTS: dict[str, str] = {
+    "•": "-",
+    "…": "...",
+    "→": "->",
+    "←": "<-",
+    "↔": "<->",
+    "≤": "<=",
+    "≥": ">=",
+    "—": "-",
+    "–": "-",
+    "✓": "[ok]",
+    "✗": "[x]",
+    "✨": "*",
+    "🚀": "[launch]",
+    "📄": "[file]",
+    "📊": "[chart]",
+    "📌": "[pin]",
+    "💡": "[idea]",
+    "📎": "[attachment]",
+    "̀": "",
+    "́": "",
+}
 
 
 def _compact_text(value: object, *, limit: int = 1200) -> str:
@@ -116,6 +138,29 @@ def _compact_text(value: object, *, limit: int = 1200) -> str:
     if len(text) <= limit:
         return text
     return text[: limit - 1].rstrip() + "…"
+
+
+def _sanitize_text_for_windows_gbk(text: str) -> tuple[str, dict[str, str]]:
+    source = str(text or "")
+    if not source:
+        return source, {}
+    try:
+        source.encode("gbk")
+        return source, {}
+    except UnicodeEncodeError:
+        pass
+
+    replacements: dict[str, str] = {}
+    rendered: list[str] = []
+    for char in source:
+        try:
+            char.encode("gbk")
+            rendered.append(char)
+        except UnicodeEncodeError:
+            replacement = _WINDOWS_GBK_SAFE_REPLACEMENTS.get(char, "?")
+            replacements.setdefault(char, replacement)
+            rendered.append(replacement)
+    return "".join(rendered), replacements
 
 
 def _truncate_leaf_text(text: str, *, limit: int) -> str:
@@ -786,7 +831,16 @@ class CodexRunner:
             retry_context=request.retry_context,
         )
         prompt = self._apply_chat_wire_tool_call_guard(prompt, runner_config=runner_config)
+        prompt_to_send = prompt
+        prompt_sanitization: dict[str, str] = {}
+        sanitized_prompt_path: str | None = None
+        if os.name == "nt":
+            prompt_to_send, prompt_sanitization = _sanitize_text_for_windows_gbk(prompt)
         write_text(run_root / "prompt.md", prompt)
+        if prompt_sanitization:
+            sanitized_path = run_root / "prompt.windows-gbk-sanitized.md"
+            write_text(sanitized_path, prompt_to_send)
+            sanitized_prompt_path = str(sanitized_path)
 
         codex_home = self._prepare_project_codex_home(
             workspace_root,
@@ -795,7 +849,7 @@ class CodexRunner:
             run_id=request.run_id,
             runner_config=runner_config,
         )
-        command = self._build_command(request, prompt, runner_config=runner_config)
+        command = self._build_command(request, prompt_to_send, runner_config=runner_config)
         write_json(
             run_root / "command.json",
             {
@@ -807,6 +861,9 @@ class CodexRunner:
                 "turn_reason": request.turn_reason,
                 "turn_intent": request.turn_intent,
                 "turn_mode": request.turn_mode,
+                "windows_gbk_prompt_sanitized": bool(prompt_sanitization),
+                "windows_gbk_sanitized_prompt_path": sanitized_prompt_path,
+                "windows_gbk_replacements": prompt_sanitization,
             },
         )
 
@@ -846,11 +903,6 @@ class CodexRunner:
         assert process.stdout is not None
         assert process.stderr is not None
         try:
-            process.stdin.write(prompt)
-            process.stdin.close()
-
-            output_parts: list[str] = []
-            final_output_parts: list[str] = []
             history_events = history_root / "events.jsonl"
             stdout_events = run_root / "stdout.jsonl"
             quest_events = request.quest_root / ".ds" / "events.jsonl"
@@ -869,6 +921,58 @@ class CodexRunner:
                     "created_at": utc_now(),
                 },
             )
+            if prompt_sanitization:
+                append_jsonl(
+                    quest_events,
+                    {
+                        "event_id": generate_id("evt"),
+                        "type": "runner.prompt_sanitized",
+                        "quest_id": request.quest_id,
+                        "run_id": request.run_id,
+                        "source": "codex",
+                        "skill_id": request.skill_id,
+                        "summary": (
+                            "Windows GBK-compatible prompt sanitization replaced non-encodable characters "
+                            "before sending the prompt to Codex."
+                        ),
+                        "replacements": prompt_sanitization,
+                        "created_at": utc_now(),
+                    },
+                )
+
+            try:
+                process.stdin.write(prompt_to_send)
+            except UnicodeEncodeError as exc:
+                if os.name == "nt" and not prompt_sanitization:
+                    prompt_to_send, prompt_sanitization = _sanitize_text_for_windows_gbk(prompt)
+                    if not prompt_sanitization:
+                        raise exc
+                    sanitized_path = run_root / "prompt.windows-gbk-sanitized.md"
+                    write_text(sanitized_path, prompt_to_send)
+                    append_jsonl(
+                        quest_events,
+                        {
+                            "event_id": generate_id("evt"),
+                            "type": "runner.prompt_sanitized",
+                            "quest_id": request.quest_id,
+                            "run_id": request.run_id,
+                            "source": "codex",
+                            "skill_id": request.skill_id,
+                            "summary": (
+                                "Windows GBK-compatible prompt sanitization retried after a UnicodeEncodeError "
+                                "while writing the prompt to Codex."
+                            ),
+                            "replacements": prompt_sanitization,
+                            "created_at": utc_now(),
+                        },
+                    )
+                    process.stdin.write(prompt_to_send)
+                else:
+                    raise exc
+            process.stdin.close()
+
+            output_parts: list[str] = []
+            final_output_parts: list[str] = []
 
             for raw_line in process.stdout:
                 line = raw_line.rstrip("\n")

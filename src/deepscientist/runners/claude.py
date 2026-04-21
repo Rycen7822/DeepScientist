@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -122,6 +123,7 @@ class ClaudeRunner(SimpleCliRunner):
         for filename in (".credentials.json", "settings.json", "settings.local.json"):
             _copy_file_if_exists(source_home / filename, target / filename)
         _sync_overlay_tree(target / "agents", source_home / "agents", quest_root / ".claude" / "agents")
+        pythonpath = str(os.environ.get("PYTHONPATH") or "").strip()
         shared_env = _claude_auth_env(ensure_utf8_subprocess_env({
             "DEEPSCIENTIST_HOME": str(self.home),
             "DEEPSCIENTIST_REPO_ROOT": str(self.repo_root),
@@ -138,48 +140,27 @@ class ClaudeRunner(SimpleCliRunner):
         custom_profile = resolve_mcp_tool_profile_for_quest(quest_root)
         if custom_profile:
             shared_env["DS_CUSTOM_PROFILE"] = custom_profile
+        if pythonpath:
+            shared_env["PYTHONPATH"] = pythonpath
         server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
-        project_state = {
-            str(workspace_root): {
-                "allowedTools": [],
-                "mcpContextUris": [],
-                "mcpServers": {
-                    name: {
-                        "type": "stdio",
-                        "command": sys.executable,
-                        "args": ["-m", "deepscientist.mcp.server", "--namespace", name],
-                        "env": shared_env,
-                    }
-                    for name in server_names
-                },
-                "enabledMcpjsonServers": [],
-                "disabledMcpjsonServers": [],
-                "hasTrustDialogAccepted": True,
-                "projectOnboardingSeenCount": 0,
-                "hasClaudeMdExternalIncludesApproved": False,
-                "hasClaudeMdExternalIncludesWarningShown": False,
+        mcp_config = {
+            "mcpServers": {
+                name: {
+                    "command": sys.executable,
+                    "args": ["-m", "deepscientist.mcp.server", "--namespace", name],
+                    "env": shared_env,
+                }
+                for name in server_names
             }
         }
-        claude_state_path = target / ".claude.json"
-        existing_state: dict[str, Any] = {}
-        if claude_state_path.exists():
-            try:
-                existing_state = json.loads(claude_state_path.read_text(encoding="utf-8"))
-            except json.JSONDecodeError:
-                existing_state = {}
-        merged_state = {
-            **existing_state,
-            "projects": {
-                **(existing_state.get("projects") if isinstance(existing_state.get("projects"), dict) else {}),
-                **project_state,
-            },
-        }
-        write_json(claude_state_path, merged_state)
+        mcp_config_path = target / "mcp.json"
+        write_json(mcp_config_path, mcp_config)
         return {
             "CLAUDE_CONFIG_DIR": str(target),
             **cli_auth_env,
         }, {
             "claude_home": str(target),
+            "claude_mcp_config": str(mcp_config_path),
         }
 
     def _build_command(self, request: RunRequest, prompt: str, *, runner_config: dict[str, Any] | None = None) -> list[str]:
@@ -188,6 +169,9 @@ class ClaudeRunner(SimpleCliRunner):
         resolved_runner_config = runner_config if isinstance(runner_config, dict) else self._load_runner_config()
         permission_mode = str(resolved_runner_config.get("permission_mode") or "bypassPermissions").strip() or "bypassPermissions"
         normalized_model = str(request.model or "").strip()
+        mcp_config_path = workspace_root / ".ds" / "claude-home" / "mcp.json"
+        custom_profile = resolve_mcp_tool_profile_for_quest(request.quest_root)
+        server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
         command = [
             resolved_binary or self.binary,
             "-p",
@@ -201,6 +185,10 @@ class ClaudeRunner(SimpleCliRunner):
             "--no-session-persistence",
             "--permission-mode",
             permission_mode,
+            "--mcp-config",
+            str(mcp_config_path),
+            "--allowedTools",
+            ",".join(f"mcp__{name}" for name in server_names),
             "--disallowedTools",
             _CLAUDE_DISALLOWED_TOOLS,
         ]
@@ -357,4 +345,29 @@ class ClaudeRunner(SimpleCliRunner):
                         "created_at": created_at,
                     }
                 )
+            return events, texts
+
+        if event_type == "system":
+            subtype = str(payload.get("subtype") or "").strip().lower()
+            error_status = payload.get("error_status")
+            error_name = str(payload.get("error") or "").strip().lower()
+            if subtype == "api_retry" and int(error_status or 0) == 401 and error_name == "authentication_failed":
+                message = "Claude Code authentication failed (401)."
+                translation_state["fatal_error"] = message
+                translation_state["abort_process"] = True
+                events.append(
+                    {
+                        "event_id": generate_id("evt"),
+                        "type": "runner.error",
+                        "quest_id": quest_id,
+                        "run_id": run_id,
+                        "source": self.runner_name,
+                        "skill_id": skill_id,
+                        "text": message,
+                        "stream_id": run_id,
+                        "message_id": run_id,
+                        "created_at": created_at,
+                    }
+                )
+                return events, texts
         return events, texts

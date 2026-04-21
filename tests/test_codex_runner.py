@@ -4,8 +4,14 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+from deepscientist.diagnostics.runner_failures import diagnose_runner_failure
 from deepscientist.runners import ClaudeRunner, CodexRunner, OpenCodeRunner, RunRequest
-from deepscientist.runners.codex import _compact_tool_event_payload, _message_events, _tool_event
+from deepscientist.runners.codex import (
+    _compact_tool_event_payload,
+    _message_events,
+    _sanitize_text_for_windows_gbk,
+    _tool_event,
+)
 from deepscientist.runners.runtime_overrides import apply_claude_runtime_overrides
 from deepscientist.shared import read_json, read_jsonl, write_yaml
 
@@ -228,6 +234,33 @@ def test_codex_tool_event_surfaces_failed_mcp_error_message() -> None:
     assert rendered["type"] == "runner.tool_result"
     assert rendered["status"] == "failed"
     assert "user cancelled MCP tool call" in rendered["output"]
+
+
+def test_sanitize_text_for_windows_gbk_replaces_unencodable_symbols_only() -> None:
+    original = "Keep Chinese 中文, but replace bullet • and sparkles ✨ and kaomoji (•̀ᴗ•́)و."
+
+    sanitized, replacements = _sanitize_text_for_windows_gbk(original)
+
+    sanitized.encode("gbk")
+    assert "中文" in sanitized
+    assert "•" not in sanitized
+    assert "✨" not in sanitized
+    assert replacements["•"] == "-"
+    assert replacements["✨"] == "*"
+
+
+def test_diagnose_runner_failure_recognizes_windows_gbk_prompt_encoding_error() -> None:
+    diagnosis = diagnose_runner_failure(
+        runner_name="codex",
+        summary=(
+            "Runner codex failed on attempt 5/5: "
+            "'gbk' codec can't encode character '\\u2022' in position 18706: illegal multibyte sequence"
+        ),
+    )
+
+    assert diagnosis is not None
+    assert diagnosis.code == "windows_gbk_prompt_encoding_error"
+    assert diagnosis.retriable is False
 
 
 def test_codex_runner_injects_builtin_mcp_tool_approval_overrides(temp_home) -> None:  # type: ignore[no-untyped-def]

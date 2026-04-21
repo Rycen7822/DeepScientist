@@ -32,7 +32,9 @@ claude -p \
   --verbose \
   --add-dir /absolute/workspace \
   --no-session-persistence \
-  --permission-mode bypassPermissions
+  --permission-mode bypassPermissions \
+  --mcp-config /absolute/runtime/claude-home/mcp.json \
+  --allowedTools "mcp__memory,mcp__artifact,mcp__bash_exec"
 ```
 
 Then it injects three built-in MCP servers into the run:

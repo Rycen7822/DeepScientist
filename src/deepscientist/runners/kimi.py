@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
@@ -94,6 +95,7 @@ class KimiRunner(SimpleCliRunner):
         source_home = Path(str(resolved_runner_config.get("config_dir") or Path.home() / ".kimi")).expanduser()
         kimi_home = materialize_kimi_runtime_home(source_home=source_home, target_home=runtime_home)
         _sync_kimi_tree(kimi_home / "skills", source_home / "skills", quest_root / ".kimi" / "skills")
+        pythonpath = str(os.environ.get("PYTHONPATH") or "").strip()
 
         shared_env = ensure_utf8_subprocess_env(
             {
@@ -113,6 +115,8 @@ class KimiRunner(SimpleCliRunner):
         custom_profile = resolve_mcp_tool_profile_for_quest(quest_root)
         if custom_profile:
             shared_env["DS_CUSTOM_PROFILE"] = custom_profile
+        if pythonpath:
+            shared_env["PYTHONPATH"] = pythonpath
         server_names = builtin_mcp_server_names_for_custom_profile(custom_profile)
         mcp_config = {
             "mcpServers": {

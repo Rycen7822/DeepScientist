@@ -105,6 +105,24 @@ def diagnose_runner_failure(
             matched_text="argument list too long",
         )
 
+    if "codec can't encode character" in lower and ("gbk" in lower or "cp936" in lower):
+        return FailureDiagnosis(
+            code="windows_gbk_prompt_encoding_error",
+            problem="A Windows GBK code-page path rejected a Unicode character in the runner payload.",
+            why=(
+                "A non-UTF-8 Windows encoding path tried to encode the runner prompt or related text with "
+                "GBK/CP936 and hit a character that code page cannot represent, such as bullets, emoji, "
+                "or kaomoji symbols."
+            ),
+            guidance=(
+                "Update to a DeepScientist build that sanitizes non-GBK prompt characters before Codex on Windows.",
+                "If you are already on the latest build, remove emoji or decorative symbols such as `•` from custom prompts, notes, or connector-facing text.",
+                "Prefer a UTF-8 terminal (`chcp 65001`) or the WSL2 deployment path when possible.",
+            ),
+            retriable=False,
+            matched_text="gbk codec can't encode character",
+        )
+
     if "missing environment variable" in lower:
         return FailureDiagnosis(
             code="provider_env_missing",

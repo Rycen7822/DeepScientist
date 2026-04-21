@@ -2014,7 +2014,7 @@ Use **Test** when the file exposes runtime dependencies.
                 "guidance": self._runner_missing_binary_guidance("claude", config),
             }
         env = ensure_utf8_subprocess_env(os.environ.copy())
-        env.update(self._codex_runner_env(config))
+        env.update(self._claude_auth_runner_env(self._codex_runner_env(config)))
         temp_home_handle = tempfile.TemporaryDirectory()
         try:
             temp_home = Path(temp_home_handle.name)

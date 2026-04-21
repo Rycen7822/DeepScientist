@@ -36,7 +36,9 @@ claude -p \
   --verbose \
   --add-dir /absolute/workspace \
   --no-session-persistence \
-  --permission-mode bypassPermissions
+  --permission-mode bypassPermissions \
+  --mcp-config /absolute/runtime/claude-home/mcp.json \
+  --allowedTools "mcp__memory,mcp__artifact,mcp__bash_exec"
 ```
 
 然后再注入三个内建 MCP：

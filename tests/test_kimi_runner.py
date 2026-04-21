@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -87,6 +88,7 @@ def test_kimi_runner_prepare_runtime_materializes_home_and_mcp_config(temp_home:
     assert (Path(env["HOME"]) / ".kimi" / "skills" / "quest-skill" / "SKILL.md").exists()
     assert not (Path(env["HOME"]) / ".kimi" / "sessions").exists()
     assert sorted(payload["mcpServers"]) == ["artifact", "bash_exec", "memory"]
+    assert payload["mcpServers"]["artifact"]["command"] == sys.executable
 
 
 def test_kimi_runner_translates_assistant_and_tool_messages() -> None:

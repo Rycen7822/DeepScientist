@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -139,6 +140,31 @@ def test_claude_runner_compacts_extreme_tool_results() -> None:
     assert len(str(events[0]['output'])) < 20_000
 
 
+def test_claude_runner_marks_authentication_retry_as_fatal() -> None:
+    runner = _runner(ClaudeRunner, binary='claude')
+    state: dict[str, object] = {}
+
+    events, texts = runner._translate_event(
+        {
+            'type': 'system',
+            'subtype': 'api_retry',
+            'error_status': 401,
+            'error': 'authentication_failed',
+        },
+        raw_line='',
+        quest_id='q-001',
+        run_id='run-001',
+        skill_id='decision',
+        created_at='2026-04-14T00:00:01Z',
+        translation_state=state,
+    )
+
+    assert texts == []
+    assert events[0]['type'] == 'runner.error'
+    assert state['fatal_error'] == 'Claude Code authentication failed (401).'
+    assert state['abort_process'] is True
+
+
 def test_claude_runner_command_uses_configured_permission_mode(temp_home: Path) -> None:
     runner = ClaudeRunner(
         home=temp_home,
@@ -165,6 +191,14 @@ def test_claude_runner_command_uses_configured_permission_mode(temp_home: Path) 
     assert command[0].endswith('claude')
     assert '--permission-mode' in command
     assert command[command.index('--permission-mode') + 1] == 'bypassPermissions'
+    assert '--mcp-config' in command
+    assert command[command.index('--mcp-config') + 1].endswith('/.ds/claude-home/mcp.json')
+    assert '--allowedTools' in command
+    assert set(command[command.index('--allowedTools') + 1].split(',')) == {
+        'mcp__memory',
+        'mcp__artifact',
+        'mcp__bash_exec',
+    }
     assert '--model' not in command
 
 
@@ -178,6 +212,35 @@ def test_apply_claude_runtime_overrides_maps_yolo_and_model(monkeypatch) -> None
     assert rendered['model'] == 'claude-sonnet-4-5'
     assert rendered['permission_mode'] == 'bypassPermissions'
     assert rendered['max_turns'] == '88'
+
+
+def test_claude_runner_prepare_runtime_writes_mcp_config(temp_home: Path) -> None:
+    quest_root = temp_home / 'quest'
+    quest_root.mkdir(parents=True, exist_ok=True)
+    runner = ClaudeRunner(
+        home=temp_home,
+        repo_root=temp_home,
+        binary='claude',
+        logger=SimpleNamespace(),
+        prompt_builder=SimpleNamespace(),
+        artifact_service=SimpleNamespace(),
+    )
+
+    env, meta = runner._prepare_runtime(
+        workspace_root=quest_root,
+        quest_root=quest_root,
+        quest_id='q-001',
+        run_id='run-001',
+        runner_config={'config_dir': str(temp_home / 'missing-claude-home')},
+    )
+
+    config_path = Path(str(meta['claude_mcp_config']))
+    payload = json.loads(config_path.read_text(encoding='utf-8'))
+    artifact_server = payload['mcpServers']['artifact']
+    assert env['CLAUDE_CONFIG_DIR'].endswith('/.ds/claude-home')
+    assert sorted(payload['mcpServers']) == ['artifact', 'bash_exec', 'memory']
+    assert artifact_server['command'] == sys.executable
+    assert artifact_server['args'] == ['-m', 'deepscientist.mcp.server', '--namespace', 'artifact']
 
 
 def test_opencode_runner_preserves_mcp_identity_on_tool_results() -> None:
@@ -376,6 +439,36 @@ def test_opencode_runner_tool_result_empty_output_does_not_leak_record() -> None
     assert 'secret' not in result_events[0]['output']
 
 
+def test_opencode_runner_records_fatal_error_from_error_event() -> None:
+    runner = _runner(OpenCodeRunner, binary='opencode')
+    state: dict[str, object] = {}
+
+    events, texts = runner._translate_event(
+        {
+            'type': 'error',
+            'sessionID': 'ses-error',
+            'error': {
+                'name': 'APIError',
+                'data': {
+                    'message': 'Your API key has expired.',
+                    'statusCode': 401,
+                },
+            },
+        },
+        raw_line='',
+        quest_id='q-001',
+        run_id='run-001',
+        skill_id='decision',
+        created_at='2026-04-14T00:00:02Z',
+        translation_state=state,
+    )
+
+    assert texts == []
+    assert events[0]['type'] == 'runner.error'
+    assert 'expired' in events[0]['text']
+    assert 'expired' in str(state.get('fatal_error') or '')
+
+
 def test_opencode_runner_inline_terminal_empty_output_does_not_leak_state() -> None:
     runner = _runner(OpenCodeRunner, binary='opencode')
     state: dict[str, object] = {}
@@ -430,3 +523,4 @@ def test_opencode_runner_prepare_runtime_uses_allow_permission_mode_by_default(t
     assert env['XDG_CONFIG_HOME'].endswith('.config')
     assert payload['permission'] == 'allow'
     assert payload['mcp']['artifact']['enabled'] is True
+    assert payload['mcp']['artifact']['command'][0] == sys.executable

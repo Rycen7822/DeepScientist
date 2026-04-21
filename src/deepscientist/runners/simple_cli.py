@@ -229,11 +229,21 @@ class SimpleCliRunner:
                 for event in translated_events:
                     append_jsonl(quest_events, event)
                 output_parts.extend(part.strip() for part in text_parts if isinstance(part, str) and part.strip())
+                if translation_state.get("abort_process") and process.poll() is None:
+                    try:
+                        process.terminate()
+                    except OSError:
+                        pass
 
             exit_code = process.wait()
             stderr_thread.join(timeout=5)
             stderr_text = "".join(stderr_chunks)
+            fatal_error_text = str(translation_state.get("fatal_error") or "").strip()
             output_text = next((part for part in reversed(output_parts) if part), "")
+            if fatal_error_text:
+                output_text = output_text or fatal_error_text
+                if exit_code == 0:
+                    exit_code = 1
             self._emit_setup_tool_schema_warning_if_needed(
                 request=request,
                 output_text=output_text,
