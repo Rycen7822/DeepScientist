@@ -32,9 +32,6 @@ export interface FileTreeProps {
   /** Callback when file download is requested */
   onFileDownload?: (file: FileNode) => void;
 
-  /** Callback when a node should be revealed in the full explorer */
-  onRevealInExplorer?: (node: FileNode) => void;
-
   /** Additional class names */
   className?: string;
 
@@ -107,7 +104,6 @@ export function FileTree({
   projectId,
   onFileOpen,
   onFileDownload,
-  onRevealInExplorer,
   className,
   height = "100%",
   rowHeight = 28,
@@ -787,7 +783,6 @@ export function FileTree({
           onClose={() => setContextMenu(null)}
           onOpen={onFileOpen}
           onDownload={onFileDownload}
-          onRevealInExplorer={onRevealInExplorer}
           onNewFile={(parentId) => {
             setCreateFileState({ open: true, parentId });
           }}

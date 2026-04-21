@@ -8,7 +8,6 @@ import {
   ExternalLink,
   FilePlus,
   FolderPlus,
-  FolderOpen,
   Pencil,
   Copy,
   Scissors,
@@ -49,7 +48,6 @@ const BracesIcon = withPngFallback("Braces", Braces);
 const PlayIcon = withPngFallback("Play", Play);
 const DownloadIcon = withPngFallback("Download", Download);
 const RefreshCwIcon = withPngFallback("RefreshCw", RefreshCw);
-const FolderOpenIcon = withPngFallback("FolderOpen", FolderOpen);
 
 /**
  * FileTreeContextMenu props
@@ -81,9 +79,6 @@ export interface FileTreeContextMenuProps {
 
   /** Callback when delete should be confirmed externally */
   onRequestDelete?: (node: FileNode) => void;
-
-  /** Callback when the node should be revealed in the full explorer */
-  onRevealInExplorer?: (node: FileNode) => void;
 
   /** When true, show only non-mutating actions (open/download). */
   readOnly?: boolean;
@@ -148,7 +143,6 @@ export function FileTreeContextMenu({
   onNewLatexProject,
   onCompileLatexSource,
   onRequestDelete,
-  onRevealInExplorer,
   readOnly = false,
 }: FileTreeContextMenuProps) {
   const menuRef = React.useRef<HTMLDivElement>(null);
@@ -320,11 +314,6 @@ export function FileTreeContextMenu({
     onClose();
   };
 
-  const handleRevealInExplorer = () => {
-    onRevealInExplorer?.(node.data);
-    onClose();
-  };
-
   const handleCopyPath = async () => {
     const projectPath = toProjectRelativeDisplayPath(node.data.path || node.data.name);
     const copied = await copyToClipboard(projectPath);
@@ -393,12 +382,6 @@ export function FileTreeContextMenu({
         </>
       )}
 
-      <MenuItem
-        icon={FolderOpenIcon}
-        label={t("explorer_reveal_in_files", undefined, "Reveal in Explorer")}
-        onClick={handleRevealInExplorer}
-        disabled={!onRevealInExplorer}
-      />
       <MenuItem
         icon={CopyIcon}
         label={t("explorer_copy_path", undefined, "Copy Path")}

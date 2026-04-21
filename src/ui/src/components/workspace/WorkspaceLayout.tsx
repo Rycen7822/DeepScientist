@@ -2661,7 +2661,6 @@ function LeftPanel({
                 projectId={projectId}
                 onFileOpen={handleFileOpen}
                 onFileDownload={handleFileDownload}
-                onRevealInExplorer={handleRevealNodeInExplorer}
                 className="flex-1 min-h-0"
                 readOnly={readOnlyMode}
                 hideDotfiles={hideDotfilesEffective}
@@ -2684,7 +2683,6 @@ function LeftPanel({
                 projectId={projectId}
                 onFileOpen={handleFileOpen}
                 onFileDownload={handleFileDownload}
-                onRevealInExplorer={handleRevealNodeInExplorer}
                 className="flex-1 min-h-0"
                 readOnly
                 hideDotfiles

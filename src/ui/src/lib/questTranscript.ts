@@ -1,5 +1,4 @@
 import type { FeedItem } from '@/types'
-import { mergeFeedItemsForRender, type RenderOperationFeedItem } from '@/lib/feedOperations'
 
 export type QuestTranscriptMessage = {
   id: string
@@ -14,32 +13,39 @@ export type QuestTranscriptMessage = {
   readReason?: string | null
   readAt?: string | null
   messageId?: string | null
+  interactionId?: string | null
   emphasis?: 'message' | 'artifact'
 }
 
-export type QuestTranscriptEntry =
-  | ({ kind: 'message' } & QuestTranscriptMessage)
-  | {
-      kind: 'operation'
-      id: string
-      item: RenderOperationFeedItem
-    }
-
-function normalizeEventType(value?: string | null) {
-  return String(value || '').trim().toLowerCase()
+function normalizeComparableText(value?: string | null) {
+  return String(value || '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
-function isVisibleAssistantMessage(item: Extract<FeedItem, { type: 'message' }>) {
-  if (item.role !== 'assistant') return false
-  if (item.reasoning) return false
-  if (!item.content.trim()) return false
-  const eventType = normalizeEventType(item.eventType)
-  if (!eventType) return true
-  return (
-    eventType === 'conversation.message' ||
-    eventType === 'runner.agent_message' ||
-    eventType === 'runner.delta'
-  )
+function textsLookEquivalent(left: string | undefined | null, right: string | undefined | null) {
+  const normalizedLeft = normalizeComparableText(left)
+  const normalizedRight = normalizeComparableText(right)
+  if (!normalizedLeft || !normalizedRight) return false
+  if (normalizedLeft === normalizedRight) return true
+  const [shorter, longer] =
+    normalizedLeft.length <= normalizedRight.length
+      ? [normalizedLeft, normalizedRight]
+      : [normalizedRight, normalizedLeft]
+  return shorter.length >= 48 && longer.includes(shorter)
+}
+
+function parseTimestampMs(value?: string) {
+  if (!value) return null
+  const parsed = Date.parse(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function withinDuplicateWindow(left?: string, right?: string, seconds = 90) {
+  const leftMs = parseTimestampMs(left)
+  const rightMs = parseTimestampMs(right)
+  if (leftMs == null || rightMs == null) return true
+  return Math.abs(leftMs - rightMs) <= seconds * 1000
 }
 
 function isVisibleUserMessage(item: Extract<FeedItem, { type: 'message' }>) {
@@ -50,80 +56,82 @@ function isVisibleInteractiveArtifact(item: Extract<FeedItem, { type: 'artifact'
   return Boolean(item.interactionId && item.content.trim())
 }
 
-function buildArtifactBadge(item: Extract<FeedItem, { type: 'artifact' }>) {
-  const parts = [item.kind, item.status].filter(Boolean)
-  return parts.length ? parts.join(' · ') : null
-}
+function shouldSuppressDuplicateInteraction(
+  rendered: QuestTranscriptMessage[],
+  candidate: Extract<FeedItem, { type: 'artifact' }>
+) {
+  const candidateInteractionId = String(candidate.interactionId || '').trim()
 
-export function buildQuestTranscriptItems(feed: FeedItem[]): QuestTranscriptEntry[] {
-  return mergeFeedItemsForRender(feed).flatMap((item) => {
-    if (item.type === 'operation') {
-      return [
-        {
-          kind: 'operation',
-          id: item.renderId,
-          item,
-        } satisfies QuestTranscriptEntry,
-      ]
+  for (let index = rendered.length - 1; index >= 0; index -= 1) {
+    const previous = rendered[index]
+    if (previous.role === 'user') {
+      return false
     }
 
-    if (item.type === 'message') {
-      if (isVisibleUserMessage(item)) {
-        return [
-          {
-            kind: 'message',
-            id: item.id,
-            role: 'user',
-            content: item.content.trim(),
-            attachments: item.attachments,
-            createdAt: item.createdAt,
-            streaming: false,
-            deliveryState: item.deliveryState ?? null,
-            readState: item.readState ?? null,
-            readReason: item.readReason ?? null,
-            readAt: item.readAt ?? null,
-            messageId: item.messageId ?? null,
-            emphasis: 'message',
-          } satisfies QuestTranscriptEntry,
-        ]
-      }
-      if (isVisibleAssistantMessage(item)) {
-        return [
-          {
-            kind: 'message',
-            id: item.id,
-            role: 'assistant',
-            content: item.content.trim(),
-            createdAt: item.createdAt,
-            streaming: Boolean(item.stream),
-            emphasis: 'message',
-          } satisfies QuestTranscriptEntry,
-        ]
-      }
-      return []
+    const previousInteractionId = String(previous.interactionId || '').trim()
+    if (
+      candidateInteractionId &&
+      previousInteractionId &&
+      candidateInteractionId === previousInteractionId &&
+      textsLookEquivalent(previous.content, candidate.content)
+    ) {
+      return true
     }
 
-    if (item.type === 'artifact' && isVisibleInteractiveArtifact(item)) {
-      return [
-        {
-          kind: 'message',
-          id: item.id,
-          role: 'assistant',
-          content: item.content.trim(),
-          createdAt: item.createdAt,
-          badge: buildArtifactBadge(item),
-          streaming: false,
-          emphasis: 'artifact',
-        } satisfies QuestTranscriptEntry,
-      ]
+    if (!withinDuplicateWindow(previous.createdAt, candidate.createdAt)) {
+      continue
     }
+    if (textsLookEquivalent(previous.content, candidate.content)) {
+      return true
+    }
+  }
 
-    return []
-  })
+  return false
 }
 
 export function buildQuestTranscriptMessages(feed: FeedItem[]): QuestTranscriptMessage[] {
-  return buildQuestTranscriptItems(feed)
-    .filter((item): item is Extract<QuestTranscriptEntry, { kind: 'message' }> => item.kind === 'message')
-    .map(({ kind: _kind, ...message }) => message)
+  const messages: QuestTranscriptMessage[] = []
+
+  for (const item of feed) {
+    if (item.type === 'message') {
+      if (!isVisibleUserMessage(item)) {
+        continue
+      }
+      messages.push({
+        id: item.id,
+        role: 'user',
+        content: item.content.trim(),
+        attachments: item.attachments,
+        createdAt: item.createdAt,
+        streaming: false,
+        deliveryState: item.deliveryState ?? null,
+        readState: item.readState ?? null,
+        readReason: item.readReason ?? null,
+        readAt: item.readAt ?? null,
+        messageId: item.messageId ?? null,
+        emphasis: 'message',
+      })
+      continue
+    }
+
+    if (item.type !== 'artifact' || !isVisibleInteractiveArtifact(item)) {
+      continue
+    }
+    if (shouldSuppressDuplicateInteraction(messages, item)) {
+      continue
+    }
+
+    messages.push({
+      id: item.id,
+      role: 'assistant',
+      content: item.content.trim(),
+      attachments: item.attachments,
+      createdAt: item.createdAt,
+      streaming: false,
+      interactionId: item.interactionId ?? null,
+      emphasis: 'message',
+    })
+  }
+
+  return messages
 }

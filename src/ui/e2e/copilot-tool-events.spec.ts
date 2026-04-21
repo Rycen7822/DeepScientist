@@ -17,7 +17,7 @@ function loadFixture(): CopilotFixture {
 const fixture = loadFixture()
 
 test.describe('copilot tool events', () => {
-  test('renders MCP tool operations in both Studio and Chat surfaces', async ({ page }) => {
+  test('renders MCP tool operations only in the Studio surface', async ({ page }) => {
     await page.goto(`/projects/${fixture.quest_id}`)
 
     const dock = page.locator('.ds-copilot-dock')
@@ -36,11 +36,10 @@ test.describe('copilot tool events', () => {
 
     await page.getByRole('radio', { name: /^Chat$/ }).click()
     await expect(
-      dock.locator('[data-copilot-tool-surface="chat"][data-copilot-tool-server="artifact"][data-copilot-tool-name="get_quest_state"]').first()
-    ).toBeVisible({ timeout: 15_000 })
+      dock.locator('[data-copilot-tool-surface="chat"][data-copilot-tool-server="artifact"][data-copilot-tool-name="get_quest_state"]')
+    ).toHaveCount(0)
     await expect(
-      dock.locator('[data-copilot-tool-surface="chat"][data-copilot-tool-server="bash_exec"][data-copilot-tool-name="bash_exec"]').first()
-    ).toBeVisible({ timeout: 15_000 })
-    await expect(dock.getByText('pwd', { exact: false }).last()).toBeVisible({ timeout: 15_000 })
+      dock.locator('[data-copilot-tool-surface="chat"][data-copilot-tool-server="bash_exec"][data-copilot-tool-name="bash_exec"]')
+    ).toHaveCount(0)
   })
 })

@@ -11,9 +11,7 @@ import { useQuestMessageAttachments, type QuestMessageAttachmentDraft } from '@/
 import type { CopilotPrefill } from '@/lib/plugins/ai-manus/view-types'
 import { useTokenStream } from '@/lib/plugins/ai-manus/hooks/useTokenStream'
 import { ChatScrollProvider } from '@/lib/plugins/ai-manus/lib/chat-scroll-context'
-import { buildQuestTranscriptItems, type QuestTranscriptEntry } from '@/lib/questTranscript'
-import { deriveMcpIdentity } from '@/lib/mcpIdentity'
-import type { RenderOperationFeedItem } from '@/lib/feedOperations'
+import { buildQuestTranscriptMessages, type QuestTranscriptMessage } from '@/lib/questTranscript'
 import { useAutoFollowScroll } from '@/lib/useAutoFollowScroll'
 import { cn } from '@/lib/utils'
 import type { FeedItem } from '@/types'
@@ -21,8 +19,6 @@ import { QuestCopilotComposer } from './QuestCopilotComposer'
 import { QuestMessageAttachments } from './QuestMessageAttachments'
 import { QuestCopilotPaneLayout } from './QuestCopilotPaneLayout'
 import { QuestUserReadStateMeta } from './QuestUserReadStateMeta'
-import { QuestBashExecOperation } from './QuestBashExecOperation'
-import { QuestMcpOperation } from './QuestMcpOperation'
 
 type ConnectorCommand = {
   name: string
@@ -57,21 +53,6 @@ type QuestConnectorChatViewProps = {
   prefill?: CopilotPrefill | null
 }
 
-type ConnectorMessage = {
-  id: string
-  role: 'user' | 'assistant'
-  content: string
-  createdAt?: string
-  streaming?: boolean
-  badge?: string | null
-  emphasis?: 'message' | 'artifact'
-  deliveryState?: string | null
-  readState?: string | null
-  readReason?: string | null
-  messageId?: string | null
-  attachments?: Array<Record<string, unknown>>
-}
-
 function formatTime(value?: string) {
   if (!value) return ''
   const date = new Date(value)
@@ -84,64 +65,8 @@ function formatTime(value?: string) {
   }).format(date)
 }
 
-export function buildQuestConnectorMessages(feed: FeedItem[]): ConnectorMessage[] {
-  return buildQuestTranscriptItems(feed)
-    .filter((item): item is Extract<QuestTranscriptEntry, { kind: 'message' }> => item.kind === 'message')
-    .map(({ kind: _kind, ...message }) => message)
-}
-
-function isBashExecOperation(item: RenderOperationFeedItem) {
-  const identity = deriveMcpIdentity(item.toolName, item.mcpServer, item.mcpTool)
-  return identity.server === 'bash_exec'
-}
-
-function ToolBubble({ questId, item }: { questId: string; item: RenderOperationFeedItem }) {
-  const identity = deriveMcpIdentity(item.toolName, item.mcpServer, item.mcpTool)
-
-  return (
-    <div
-      className="flex w-full flex-col items-start gap-1"
-      data-copilot-tool-surface="chat"
-      data-copilot-tool-server={identity.server || undefined}
-      data-copilot-tool-name={identity.tool || item.toolName || undefined}
-    >
-      <div className="min-w-0 max-w-[94%]">
-        {isBashExecOperation(item) ? (
-          <QuestBashExecOperation
-            questId={questId}
-            itemId={item.id}
-            toolCallId={item.toolCallId}
-            toolName={item.toolName}
-            label={item.label}
-            status={item.status}
-            args={item.args}
-            output={item.output}
-            createdAt={item.createdAt}
-            metadata={item.metadata}
-            comment={item.comment}
-            isLatest={!item.hasResult}
-            expandBehavior="latest_or_running"
-          />
-        ) : (
-          <QuestMcpOperation
-            questId={questId}
-            itemId={item.id}
-            toolCallId={item.toolCallId}
-            toolName={item.toolName}
-            label={item.label}
-            status={item.status}
-            args={item.args}
-            output={item.output}
-            createdAt={item.createdAt}
-            metadata={item.metadata}
-            mcpServer={item.mcpServer}
-            mcpTool={item.mcpTool}
-            comment={item.comment}
-          />
-        )}
-      </div>
-    </div>
-  )
+export function buildQuestConnectorMessages(feed: FeedItem[]): QuestTranscriptMessage[] {
+  return buildQuestTranscriptMessages(feed)
 }
 
 function DeliveryIndicator({ state }: { state?: string | null }) {
@@ -172,7 +97,7 @@ function MessageBubble({
   onReadNow,
   onWithdraw,
 }: {
-  item: ConnectorMessage
+  item: QuestTranscriptMessage
   animateText: boolean
   busyAction: 'read_now' | 'withdraw' | null
   onReadNow?: ((messageId: string) => void | Promise<void>) | null
@@ -201,9 +126,7 @@ function MessageBubble({
           'min-w-0 max-w-[92%] overflow-hidden rounded-2xl px-3.5 py-2.5 text-sm leading-6',
           isUser
             ? 'bg-[#2F3437] text-white'
-            : item.emphasis === 'artifact'
-              ? 'border border-black/[0.05] bg-[rgba(159,177,194,0.12)] text-foreground dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white/90'
-              : 'border border-black/[0.05] bg-[rgba(255,251,246,0.9)] text-foreground dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white/90'
+            : 'border border-black/[0.05] bg-[rgba(255,251,246,0.9)] text-foreground dark:border-white/[0.08] dark:bg-white/[0.06] dark:text-white/90'
         )}
       >
         {item.badge && isAssistant ? (
@@ -288,11 +211,7 @@ export function QuestConnectorChatView({
   const listRef = React.useRef<HTMLDivElement | null>(null)
   const contentRef = React.useRef<HTMLDivElement | null>(null)
   const attachmentState = useQuestMessageAttachments(questId)
-  const transcriptItems = React.useMemo(() => buildQuestTranscriptItems(feed), [feed])
-  const chatMessages = React.useMemo(
-    () => transcriptItems.filter((item): item is Extract<QuestTranscriptEntry, { kind: 'message' }> => item.kind === 'message'),
-    [transcriptItems]
-  )
+  const chatMessages = React.useMemo(() => buildQuestTranscriptMessages(feed), [feed])
   const latestAnimatedMessageId = React.useMemo(() => {
     for (let index = chatMessages.length - 1; index >= 0; index -= 1) {
       const item = chatMessages[index]
@@ -305,7 +224,7 @@ export function QuestConnectorChatView({
   const { isNearBottom } = useAutoFollowScroll({
     scrollRef: listRef,
     contentRef,
-    deps: [transcriptItems.length, streaming, activeToolCount],
+    deps: [chatMessages.length, streaming, activeToolCount],
   })
   const prependAnchorRef = React.useRef<{ active: boolean; scrollHeight: number; scrollTop: number }>({
     active: false,
@@ -455,7 +374,7 @@ export function QuestConnectorChatView({
     const delta = root.scrollHeight - prependAnchorRef.current.scrollHeight
     root.scrollTop = prependAnchorRef.current.scrollTop + Math.max(delta, 0)
     prependAnchorRef.current.active = false
-  }, [transcriptItems.length, loadingOlderHistory])
+  }, [chatMessages.length, loadingOlderHistory])
 
   const statusLine = React.useMemo(() => {
     if (error) {
@@ -534,36 +453,32 @@ export function QuestConnectorChatView({
                   </button>
                 </div>
               ) : null}
-              {transcriptItems.map((item) =>
-                item.kind === 'message' ? (
-                  <MessageBubble
-                    key={item.id}
-                    item={item}
-                    animateText={
-                      item.role === 'assistant' &&
-                      latestAnimatedMessageId === item.id &&
-                      Boolean(item.streaming || streaming)
-                    }
-                    busyAction={
-                      messageAction && messageAction.messageId === item.messageId
-                        ? messageAction.kind
-                        : null
-                    }
-                    onReadNow={handleReadNow}
-                    onWithdraw={handleWithdraw}
-                  />
-                ) : (
-                  <ToolBubble key={item.id} questId={questId} item={item.item} />
-                )
-              )}
+              {chatMessages.map((item) => (
+                <MessageBubble
+                  key={item.id}
+                  item={item}
+                  animateText={
+                    item.role === 'assistant' &&
+                    latestAnimatedMessageId === item.id &&
+                    Boolean(item.streaming || streaming)
+                  }
+                  busyAction={
+                    messageAction && messageAction.messageId === item.messageId
+                      ? messageAction.kind
+                      : null
+                  }
+                  onReadNow={handleReadNow}
+                  onWithdraw={handleWithdraw}
+                />
+              ))}
 
-              {transcriptItems.length === 0 ? (
+              {chatMessages.length === 0 ? (
                 <div className="pl-1 text-xs text-muted-foreground">
                   {restoring || loading ? t('copilot_connector_restoring') : t('copilot_connector_ready')}
                 </div>
               ) : null}
 
-              {(loading || restoring) && transcriptItems.length === 0 ? (
+              {(loading || restoring) && chatMessages.length === 0 ? (
                 <div className="flex justify-start py-1 pl-1">
                   <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
                 </div>
