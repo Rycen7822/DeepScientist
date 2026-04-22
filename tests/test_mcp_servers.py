@@ -12,6 +12,7 @@ from deepscientist.bash_exec import BashExecService
 from deepscientist.config import ConfigManager
 from deepscientist.daemon.app import DaemonApp
 from deepscientist.home import ensure_home_layout, repo_root
+from deepscientist.memory import MemoryService
 from deepscientist.mcp.context import McpContext
 from deepscientist.mcp.server import build_artifact_server, build_bash_exec_server, build_memory_server
 from deepscientist.quest import QuestService
@@ -207,6 +208,61 @@ def test_memory_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
     asyncio.run(scenario())
 
 
+def test_memory_mcp_server_searches_shared_quest_memory_when_runtime_mode_enabled(temp_home: Path) -> None:
+    async def scenario() -> None:
+        ensure_home_layout(temp_home)
+        config_manager = ConfigManager(temp_home)
+        config_manager.ensure_files()
+        quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+        local_quest = quest_service.create("mcp shared local quest")
+        remote_quest = quest_service.create("mcp shared remote quest")
+        memory = MemoryService(temp_home)
+
+        memory.write_card(
+            scope="quest",
+            kind="knowledge",
+            title="Remote shared lesson",
+            body="cross quest searchable lesson",
+            quest_root=Path(remote_quest["quest_root"]),
+            quest_id=remote_quest["quest_id"],
+        )
+
+        config = config_manager.load_runtime_config()
+        config["memory"] = {"read_visibility_mode": "shared_across_quests"}
+        config_manager.save_named_payload("config", config)
+
+        context = McpContext(
+            home=temp_home,
+            quest_id=local_quest["quest_id"],
+            quest_root=Path(local_quest["quest_root"]),
+            run_id="run-mcp-shared-memory",
+            active_anchor="baseline",
+            conversation_id="quest:test-shared",
+            agent_role="baseline",
+            worker_id="worker-main",
+            worktree_root=None,
+            team_mode="single",
+        )
+        server = build_memory_server(context)
+
+        search_result = _unwrap_tool_result(
+            await server.call_tool("search", {"query": "cross quest searchable lesson", "scope": "quest"})
+        )
+        assert search_result["ok"] is True
+        assert search_result["count"] == 1
+        assert search_result["items"][0]["document_id"].startswith(f"sharedmemory::{remote_quest['quest_id']}::")
+        assert search_result["items"][0]["source_quest_id"] == remote_quest["quest_id"]
+
+        recent_result = _unwrap_tool_result(await server.call_tool("list_recent", {"scope": "quest"}))
+        assert recent_result["ok"] is True
+        assert any(
+            str(item.get("document_id") or "").startswith(f"sharedmemory::{remote_quest['quest_id']}::")
+            for item in recent_result["items"]
+        )
+
+    asyncio.run(scenario())
+
+
 def test_artifact_mcp_server_interact_delivers_to_bound_qq_connector(
     temp_home: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -331,6 +387,7 @@ def test_artifact_mcp_server_tools_cover_core_flows(temp_home: Path) -> None:
             "submit_idea",
             "list_research_branches",
             "resolve_runtime_refs",
+            "get_paper_contract",
             "get_paper_contract_health",
             "get_quest_state",
             "get_global_status",

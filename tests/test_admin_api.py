@@ -373,6 +373,7 @@ def test_admin_system_hardware_surfaces_and_gpu_selection_persist(temp_home: Pat
     assert hardware["system"]["cpu"]["model"] == "AMD EPYC Test"
     assert hardware["preferences"]["gpu_selection_mode"] == "all"
     assert hardware["preferences"]["effective_gpu_ids"] == ["0", "1"]
+    assert hardware["memory_preferences"]["read_visibility_mode"] == "independent"
     assert hardware["latest_sample"] is not None
     assert hardware["recent_stats"]["sample_count"] >= 1
     assert isinstance(hardware["recent_stats"]["series"], list)
@@ -392,6 +393,7 @@ def test_admin_system_hardware_surfaces_and_gpu_selection_persist(temp_home: Pat
             "gpu_selection_mode": "selected",
             "selected_gpu_ids": ["1"],
             "include_system_hardware_in_prompt": True,
+            "memory_read_visibility_mode": "shared_across_quests",
         }
     )
     assert not isinstance(updated, tuple)
@@ -399,8 +401,11 @@ def test_admin_system_hardware_surfaces_and_gpu_selection_persist(temp_home: Pat
     assert updated["preferences"]["selected_gpu_ids"] == ["1"]
     assert updated["preferences"]["effective_gpu_ids"] == ["1"]
     assert updated["preferences"]["cuda_visible_devices"] == "1"
+    assert updated["memory_preferences"]["read_visibility_mode"] == "shared_across_quests"
 
     config = app.config_manager.load_runtime_config()
     hardware_config = config.get("hardware") if isinstance(config.get("hardware"), dict) else {}
+    memory_config = config.get("memory") if isinstance(config.get("memory"), dict) else {}
     assert hardware_config["gpu_selection_mode"] == "selected"
     assert hardware_config["selected_gpu_ids"] == ["1"]
+    assert memory_config["read_visibility_mode"] == "shared_across_quests"

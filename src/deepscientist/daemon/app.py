@@ -3391,8 +3391,37 @@ class DaemonApp:
                 )
 
     def _runner_name_for(self, snapshot: dict) -> str:
+        return self._resolve_enabled_runner_name(snapshot)
+
+    def _resolve_enabled_runner_name(self, snapshot: dict, requested_runner: str | None = None) -> str:
         configured = self.config_manager.load_named("config")
-        return str(snapshot.get("runner") or configured.get("default_runner", "codex")).strip().lower()
+        candidates = [
+            requested_runner,
+            snapshot.get("runner"),
+            snapshot.get("default_runner"),
+            configured.get("default_runner", "codex"),
+            "codex",
+        ]
+        enabled: list[str] = []
+        seen_enabled: set[str] = set()
+        for name, cfg in self.runners_config.items():
+            normalized = str(name or "").strip().lower()
+            if not normalized or normalized in seen_enabled:
+                continue
+            seen_enabled.add(normalized)
+            if isinstance(cfg, dict) and cfg.get("enabled") is not False:
+                enabled.append(normalized)
+
+        checked: set[str] = set()
+        for raw in candidates:
+            normalized = str(raw or "").strip().lower()
+            if not normalized or normalized in checked:
+                continue
+            checked.add(normalized)
+            cfg = self.runners_config.get(normalized, {})
+            if isinstance(cfg, dict) and cfg.get("enabled") is not False:
+                return normalized
+        return enabled[0] if enabled else "codex"
 
     @staticmethod
     def _stage_state_fingerprint(snapshot: dict) -> str:

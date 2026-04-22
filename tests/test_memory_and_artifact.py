@@ -500,6 +500,86 @@ def test_memory_list_recent_and_search_prefer_latest_updates(temp_home: Path) ->
     assert [item["title"] for item in search] == [newer["title"], older["title"]]
 
 
+def test_shared_memory_visibility_reads_other_quests_but_opens_them_read_only(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    config_manager = ConfigManager(temp_home)
+    config_manager.ensure_files()
+    quest_service = QuestService(temp_home, skill_installer=SkillInstaller(repo_root(), temp_home))
+    quest_local = quest_service.create("shared visibility local quest")
+    quest_remote = quest_service.create("shared visibility remote quest")
+    local_root = Path(quest_local["quest_root"])
+    remote_root = Path(quest_remote["quest_root"])
+    memory = MemoryService(temp_home)
+
+    local_card = memory.write_card(
+        scope="quest",
+        kind="knowledge",
+        title="Local durable note",
+        body="local-only durable note",
+        quest_root=local_root,
+        quest_id=quest_local["quest_id"],
+    )
+    remote_card = memory.write_card(
+        scope="quest",
+        kind="knowledge",
+        title="Remote durable note",
+        body="cross quest shared evidence",
+        quest_root=remote_root,
+        quest_id=quest_remote["quest_id"],
+    )
+
+    default_visible = memory.list_visible_quest_cards(
+        active_quest_root=local_root,
+        active_quest_id=quest_local["quest_id"],
+        limit=10,
+    )
+    assert any(item["title"] == "Local durable note" for item in default_visible)
+    assert all(item.get("source_quest_id") != quest_remote["quest_id"] for item in default_visible)
+
+    config = config_manager.load_runtime_config()
+    config["memory"] = {"read_visibility_mode": "shared_across_quests"}
+    config_manager.save_named_payload("config", config)
+
+    visible = memory.list_visible_quest_cards(
+        active_quest_root=local_root,
+        active_quest_id=quest_local["quest_id"],
+        limit=10,
+    )
+    visible_titles = [item["title"] for item in visible]
+    assert "Local durable note" in visible_titles
+    assert "Remote durable note" in visible_titles
+    assert visible_titles.index("Local durable note") < visible_titles.index("Remote durable note")
+    shared_card = next(item for item in visible if item["title"] == "Remote durable note")
+    assert shared_card["source_quest_id"] == quest_remote["quest_id"]
+    assert shared_card["shared"] is True
+    assert shared_card["writable"] is False
+    assert shared_card["document_id"] == f"sharedmemory::{quest_remote['quest_id']}::knowledge/remote-durable-note.md"
+
+    shared_search = memory.search_visible_quest_cards(
+        "cross quest shared evidence",
+        active_quest_root=local_root,
+        active_quest_id=quest_local["quest_id"],
+        limit=10,
+    )
+    assert [item["title"] for item in shared_search] == ["Remote durable note"]
+
+    opened = quest_service.open_document(quest_local["quest_id"], shared_card["document_id"])
+    assert opened["writable"] is False
+    assert opened["scope"] == "shared_quest_memory"
+    assert opened["source_quest_id"] == quest_remote["quest_id"]
+    assert "cross quest shared evidence" in opened["content"]
+
+    app = DaemonApp(temp_home)
+    api_cards = app.handlers.quest_memory(quest_local["quest_id"])
+    local_relative = Path(local_card["path"]).relative_to(local_root / "memory").as_posix()
+    local_document_id = f"memory::{local_relative}"
+    assert any(item["document_id"] == local_document_id for item in api_cards)
+    assert any(item["document_id"] == shared_card["document_id"] for item in api_cards)
+    api_shared_card = next(item for item in api_cards if item["document_id"] == shared_card["document_id"])
+    assert api_shared_card["writable"] is False
+    assert Path(remote_card["path"]).exists()
+
+
 def test_memory_document_open_uses_quest_root_when_active_workspace_is_worktree(temp_home: Path) -> None:
     ensure_home_layout(temp_home)
     ConfigManager(temp_home).ensure_files()
@@ -1199,6 +1279,8 @@ def test_paper_outline_flow_and_outline_bound_analysis_campaign(temp_home: Path)
         {},
     )
     assert outline_result_table["rows"][0]["item_id"] == "AN-001"
+    experiment_matrix = read_json(quest_root / "paper" / "paper_experiment_matrix.json", {})
+    assert any(row["item_id"] == "AN-001" for row in experiment_matrix["rows"])
 
     stage_view = quest_service.stage_view(
         quest["quest_id"],
@@ -1822,6 +1904,23 @@ def test_supplementary_experiment_protocol_supports_runtime_ref_queries_and_unif
     reviewer_section = next(item for item in selected_outline["sections"] if item["section_id"] == "reviewer-response")
     assert reviewer_section["status"] == "ready"
     assert reviewer_section["result_table"][0]["item_id"] == "AN-R1-C1"
+    experiment_matrix_json = read_json(quest_root / "paper" / "paper_experiment_matrix.json", {})
+    matrix_item_ids = {str(row.get("item_id") or "").strip() for row in experiment_matrix_json.get("rows") or []}
+    assert "AN-R1-C1" in matrix_item_ids
+    assert "main-supp-001" in matrix_item_ids
+    assert Path(quest_root / "paper" / "paper_experiment_matrix.md").exists()
+    paper_contract = artifact.get_paper_contract(quest_root)
+    assert paper_contract["ok"] is True
+    assert paper_contract["detail"] == "full"
+    bundle = paper_contract["paper_contract_bundle"]
+    assert bundle["paper_contract"]["selected_outline_ref"] == "outline-001"
+    contract_item_ids = {
+        str(row.get("item_id") or "").strip()
+        for row in (bundle["paper_experiment_matrix"].get("rows") or [])
+        if isinstance(row, dict)
+    }
+    assert "AN-R1-C1" in contract_item_ids
+    assert "main-supp-001" in contract_item_ids
     result_text = Path(completed["result_path"]).read_text(encoding="utf-8")
     assert "## Claim Impact" in result_text
     assert "Strengthens confidence in the main claim." in result_text

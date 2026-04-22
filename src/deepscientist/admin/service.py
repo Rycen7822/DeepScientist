@@ -588,6 +588,15 @@ class AdminService:
             "include_system_hardware_in_prompt": bool(hardware.get("include_system_hardware_in_prompt", True)),
         }
 
+    def _memory_preferences(self) -> dict[str, Any]:
+        config = self.app.config_manager.load_runtime_config()
+        memory = config.get("memory") if isinstance(config.get("memory"), dict) else {}
+        return {
+            "read_visibility_mode": self.app.memory_service.normalize_read_visibility_mode(
+                memory.get("read_visibility_mode")
+            ),
+        }
+
     @staticmethod
     def _effective_gpu_ids(*, gpus: list[dict[str, Any]], selection_mode: str, selected_gpu_ids: list[str]) -> list[str]:
         available_ids = [str(item.get("gpu_id") or "").strip() for item in gpus if str(item.get("gpu_id") or "").strip()]
@@ -625,6 +634,7 @@ class AdminService:
         system_payload = collect_system_hardware(self.home)
         system_payload["generated_at"] = utc_now()
         preferences = self._hardware_preferences()
+        memory_preferences = self._memory_preferences()
         gpus = [dict(item) for item in (system_payload.get("gpus") or []) if isinstance(item, dict)]
         effective_gpu_ids = self._effective_gpu_ids(
             gpus=gpus,
@@ -656,6 +666,7 @@ class AdminService:
             "generated_at": system_payload.get("generated_at"),
             "system": system_payload,
             "preferences": preferences,
+            "memory_preferences": memory_preferences,
             "prompt_hardware_summary": prompt_summary,
             "latest_sample": latest_sample,
             "recent_stats": recent_stats,
@@ -669,9 +680,11 @@ class AdminService:
         gpu_selection_mode: str | None = None,
         selected_gpu_ids: list[str] | None = None,
         include_system_hardware_in_prompt: bool | None = None,
+        memory_read_visibility_mode: str | None = None,
     ) -> dict[str, Any]:
         config = self.app.config_manager.load_runtime_config()
         hardware = config.get("hardware") if isinstance(config.get("hardware"), dict) else {}
+        memory = config.get("memory") if isinstance(config.get("memory"), dict) else {}
         if gpu_selection_mode is not None:
             normalized_mode = str(gpu_selection_mode or "all").strip().lower() or "all"
             hardware["gpu_selection_mode"] = normalized_mode if normalized_mode in {"all", "selected"} else "all"
@@ -684,7 +697,12 @@ class AdminService:
             hardware["selected_gpu_ids"] = deduped
         if include_system_hardware_in_prompt is not None:
             hardware["include_system_hardware_in_prompt"] = bool(include_system_hardware_in_prompt)
+        if memory_read_visibility_mode is not None:
+            memory["read_visibility_mode"] = self.app.memory_service.normalize_read_visibility_mode(
+                memory_read_visibility_mode
+            )
         config["hardware"] = hardware
+        config["memory"] = memory
         save_result = self.app.config_manager.save_named_payload("config", config)
         runtime_reload = self.app.reload_runtime_config()
         payload = self.system_hardware()

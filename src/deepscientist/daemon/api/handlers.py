@@ -411,11 +411,15 @@ npm --prefix src/ui run build</pre>
             else None
         )
         include_in_prompt_raw = payload.get("include_system_hardware_in_prompt")
+        memory_read_visibility_mode = payload.get("memory_read_visibility_mode")
         result = self.app.admin_service.update_system_hardware_preferences(
             gpu_selection_mode=str(selection_mode) if selection_mode is not None else None,
             selected_gpu_ids=selected_gpu_ids,
             include_system_hardware_in_prompt=(
                 bool(include_in_prompt_raw) if include_in_prompt_raw is not None else None
+            ),
+            memory_read_visibility_mode=(
+                str(memory_read_visibility_mode) if memory_read_visibility_mode is not None else None
             ),
         )
         self.app.admin_service.write_audit(
@@ -423,6 +427,7 @@ npm --prefix src/ui run build</pre>
             gpu_selection_mode=((result.get("preferences") or {}) if isinstance(result.get("preferences"), dict) else {}).get("gpu_selection_mode"),
             selected_gpu_ids=((result.get("preferences") or {}) if isinstance(result.get("preferences"), dict) else {}).get("selected_gpu_ids"),
             effective_gpu_ids=((result.get("preferences") or {}) if isinstance(result.get("preferences"), dict) else {}).get("effective_gpu_ids"),
+            memory_read_visibility_mode=((result.get("memory_preferences") or {}) if isinstance(result.get("memory_preferences"), dict) else {}).get("read_visibility_mode"),
         )
         return result
 
@@ -1855,9 +1860,13 @@ npm --prefix src/ui run build</pre>
 
     def quest_memory(self, quest_id: str) -> list[dict]:
         quest_service = self._fresh_quest_service()
-        return self._fresh_memory_service().list_cards(
-            scope="quest",
-            quest_root=quest_service._quest_root(quest_id),
+        quest_root = quest_service._require_initialized_quest_root(quest_id)
+        memory_service = self._fresh_memory_service()
+        return memory_service.list_visible_quest_cards(
+            active_quest_root=quest_root,
+            active_quest_id=quest_id,
+            limit=30,
+            include_shared=memory_service.shared_read_enabled(),
         )
 
     def documents(self, quest_id: str) -> list[dict]:
@@ -2339,21 +2348,8 @@ npm --prefix src/ui run build</pre>
         runners = self.app.config_manager.load_runners_config()
         snapshot = self.app.quest_service.snapshot(quest_id)
         requested_runner = str(body.get("runner") or "").strip().lower()
-        snapshot_runner = str(snapshot.get("runner") or snapshot.get("default_runner") or "").strip().lower()
-        configured_runner = str(config.get("default_runner", "codex")).strip().lower() or "codex"
-        candidate_runners = [requested_runner, snapshot_runner, configured_runner, "codex"]
-        runner_name = configured_runner
+        runner_name = self.app._resolve_enabled_runner_name(snapshot, requested_runner=requested_runner)
         runner_cfg = runners.get(runner_name, {}) if isinstance(runners.get(runner_name), dict) else {}
-        for candidate in candidate_runners:
-            normalized = str(candidate or "").strip().lower()
-            if not normalized:
-                continue
-            current_cfg = runners.get(normalized, {}) if isinstance(runners.get(normalized), dict) else {}
-            if current_cfg.get("enabled") is False:
-                continue
-            runner_name = normalized
-            runner_cfg = current_cfg
-            break
         if runner_cfg.get("enabled") is False:
             return {
                 "ok": False,

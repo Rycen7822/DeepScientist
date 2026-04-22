@@ -129,6 +129,76 @@ def test_config_manager_load_runners_config_backfills_normalized_defaults(temp_h
     assert runners["codex"]["retry_on_failure"] is True
 
 
+def test_quest_service_configured_default_runner_falls_back_to_enabled_runner(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    manager.path_for("config").write_text(
+        "\n".join(
+            [
+                f"home: {temp_home}",
+                "default_runner: claude",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manager.path_for("runners").write_text(
+        "\n".join(
+            [
+                "codex:",
+                "  enabled: true",
+                "  binary: codex",
+                "claude:",
+                "  enabled: false",
+                "  binary: claude",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    from deepscientist.quest import QuestService
+
+    service = QuestService(temp_home)
+    assert service._configured_default_runner() == "codex"
+
+
+def test_daemon_runner_name_falls_back_when_snapshot_runner_disabled(temp_home: Path) -> None:
+    ensure_home_layout(temp_home)
+    manager = ConfigManager(temp_home)
+    manager.ensure_files()
+    manager.path_for("config").write_text(
+        "\n".join(
+            [
+                f"home: {temp_home}",
+                "default_runner: claude",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    manager.path_for("runners").write_text(
+        "\n".join(
+            [
+                "codex:",
+                "  enabled: true",
+                "  binary: codex",
+                "claude:",
+                "  enabled: false",
+                "  binary: claude",
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    app = DaemonApp(temp_home)
+
+    snapshot = {"runner": "claude", "default_runner": "claude"}
+    assert app._runner_name_for(snapshot) == "codex"
+
+
 def test_probe_codex_runner_applies_yolo_env_overrides(
     temp_home: Path,
     monkeypatch: pytest.MonkeyPatch,

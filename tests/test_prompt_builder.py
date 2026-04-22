@@ -52,6 +52,9 @@ def test_prompt_builder_includes_layered_runtime_context(temp_home: Path) -> Non
     assert "artifact.activate_branch(...)" in prompt
     assert "artifact.confirm_baseline(...)" in prompt
     assert "artifact.complete_quest(...)" in prompt
+    assert "## 5A. Global control surface" in prompt
+    assert "chat is only a user-facing projection of state" in prompt
+    assert "if autonomous continuation is enabled and the next step is clear, execution continues" in prompt
     assert "Canonical stage skills root:" in prompt
     assert "Standard stage skill paths:" in prompt
     assert "Companion skill paths:" in prompt
@@ -107,6 +110,7 @@ def test_prompt_builder_stays_compact_and_avoids_redundant_stage_sop(temp_home: 
 
     assert "shared_interaction_contract_precedence:" in prompt
     assert "stage_contract_protocol:" in prompt
+    assert "extract and follow the skill control surface" in prompt
     assert "stage_kickoff_protocol:" not in prompt
     assert "read_plan_keepalive_protocol:" not in prompt
     assert "tool_call_keepalive_protocol:" not in prompt
@@ -1080,6 +1084,8 @@ def test_prompt_builder_delegates_stage_specific_sop_to_skills(temp_home: Path) 
     assert "problem-first vs solution-first" not in idea_prompt
     assert "### Supplementary experiment protocol" not in analysis_prompt
     assert "artifact.submit_paper_outline(mode='candidate', ...)" not in write_prompt
+    assert "read `paper-plot` first" in write_prompt
+    assert "figure quality remains the blocker" in write_prompt
 
 
 def test_prompt_builder_mentions_baseline_gate_protocol(temp_home: Path) -> None:
@@ -1426,6 +1432,7 @@ def test_prompt_builder_start_setup_prompt_avoids_unavailable_context_tools(temp
     assert "get_benchstore_catalog" not in prompt
     assert "prefer existing AISB / BenchStore entries first" in prompt
     assert "do not push the whole task-definition burden back to the user" in prompt
+    assert "baseline is only the starting point" in prompt
     assert "robust improvement beyond strong baselines / SoTA" in prompt
     assert "literature / figures / writing" in prompt
     assert "mandatory_confirmation_rule" in prompt

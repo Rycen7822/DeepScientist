@@ -375,8 +375,19 @@ def run_command(
         kimi_runner=kimi_runner,
         opencode_runner=opencode_runner,
     )
-    runner_name = str(runner_override or config.get("default_runner", "codex")).strip().lower()
-    runner_cfg = runners.get(runner_name, {})
+    candidate_runners = [runner_override, config.get("default_runner", "codex"), "codex"]
+    runner_name = "codex"
+    runner_cfg = {}
+    for candidate in candidate_runners:
+        normalized = str(candidate or "").strip().lower()
+        if not normalized:
+            continue
+        current_cfg = runners.get(normalized, {}) if isinstance(runners.get(normalized), dict) else {}
+        if current_cfg.get("enabled") is False:
+            continue
+        runner_name = normalized
+        runner_cfg = current_cfg
+        break
     if runner_cfg.get("enabled") is False:
         print(
             json.dumps(

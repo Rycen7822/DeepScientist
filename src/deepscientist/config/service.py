@@ -2726,6 +2726,15 @@ Use **Test** when the file exposes runtime dependencies.
             default=True,
         )
         normalized["hardware"] = hardware
+        memory = normalized.get("memory") if isinstance(normalized.get("memory"), dict) else {}
+        raw_memory = payload.get("memory") if isinstance(payload.get("memory"), dict) else {}
+        read_visibility_mode = str(
+            raw_memory.get("read_visibility_mode", memory.get("read_visibility_mode", "independent")) or "independent"
+        ).strip().lower()
+        if read_visibility_mode not in {"independent", "shared_across_quests"}:
+            read_visibility_mode = "independent"
+        memory["read_visibility_mode"] = read_visibility_mode
+        normalized["memory"] = memory
         literature = normalized.get("literature") if isinstance(normalized.get("literature"), dict) else {}
         raw_literature = payload.get("literature") if isinstance(payload.get("literature"), dict) else {}
         default_literature = defaults.get("literature") if isinstance(defaults.get("literature"), dict) else {}

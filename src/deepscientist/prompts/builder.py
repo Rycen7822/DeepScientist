@@ -2012,6 +2012,7 @@ class PromptBuilder:
                     f"- paper_recommended_next_stage: {str(paper_contract_health.get('recommended_next_stage') or 'none')}",
                     f"- paper_recommended_action: {str(paper_contract_health.get('recommended_action') or 'none')}",
                     f"- paper_primary_blocker: {primary_blocker}",
+                    "- paper_contract_tool: call artifact.get_paper_contract(detail='full') before writing sections, tables, or analysis prose that depend on concrete experiment or analysis results.",
                     "- paper_health_tool: call artifact.get_paper_contract_health(detail='full') before paper-facing write/finalize work when the exact blocking items matter.",
                     "- paper_outline_tool: call artifact.list_paper_outlines(...) when outline inventory or a valid outline_id is needed.",
                     "- paper_campaign_tool: call artifact.get_analysis_campaign(campaign_id='active') when exact supplementary slice status matters.",

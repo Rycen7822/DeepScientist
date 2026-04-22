@@ -54,6 +54,9 @@ def default_config(home: Path) -> dict:
             "selected_gpu_ids": [],
             "include_system_hardware_in_prompt": False,
         },
+        "memory": {
+            "read_visibility_mode": "independent",
+        },
         "literature": {
             "deepxiv": {
                 "enabled": False,

@@ -718,8 +718,31 @@ def build_memory_server(context: McpContext) -> FastMCP:
         comment: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         resolved_scope = _resolve_search_scope(context, scope)
-        quest_root = context.quest_root if resolved_scope in {"quest", "both"} else None
-        items = service.search(query, scope=resolved_scope, quest_root=quest_root, limit=limit, kind=kind)
+        if resolved_scope == "quest" and context.quest_root is not None and service.shared_read_enabled():
+            items = service.search_visible_quest_cards(
+                query,
+                active_quest_root=context.quest_root,
+                active_quest_id=context.quest_id,
+                limit=limit,
+                kind=kind,
+                include_shared=True,
+            )
+        elif resolved_scope == "both" and context.quest_root is not None:
+            quest_items = service.search_visible_quest_cards(
+                query,
+                active_quest_root=context.quest_root,
+                active_quest_id=context.quest_id,
+                limit=limit,
+                kind=kind,
+                include_shared=service.shared_read_enabled(),
+            )
+            global_items = service.search(query, scope="global", limit=limit, kind=kind)
+            items = quest_items + global_items
+            items.sort(key=lambda item: service._visible_card_sort_key(item, active_quest_id=context.quest_id))
+            items = items[:limit]
+        else:
+            quest_root = context.quest_root if resolved_scope in {"quest", "both"} else None
+            items = service.search(query, scope=resolved_scope, quest_root=quest_root, limit=limit, kind=kind)
         return {"ok": True, "count": len(items), "items": items}
 
     @server.tool(
@@ -737,10 +760,30 @@ def build_memory_server(context: McpContext) -> FastMCP:
         comment: str | dict[str, Any] | None = None,
     ) -> dict[str, Any]:
         resolved_scope = _resolve_search_scope(context, scope)
-        if resolved_scope == "both":
-            quest_items = service.list_recent(scope="quest", quest_root=context.require_quest_root(), limit=limit, kind=kind)
+        if resolved_scope == "quest" and context.quest_root is not None and service.shared_read_enabled():
+            items = service.list_visible_quest_cards(
+                active_quest_root=context.quest_root,
+                active_quest_id=context.quest_id,
+                limit=limit,
+                kind=kind,
+                include_shared=True,
+            )
+        elif resolved_scope == "both":
+            quest_items = (
+                service.list_visible_quest_cards(
+                    active_quest_root=context.require_quest_root(),
+                    active_quest_id=context.quest_id,
+                    limit=limit,
+                    kind=kind,
+                    include_shared=service.shared_read_enabled(),
+                )
+                if context.quest_root is not None
+                else []
+            )
             global_items = service.list_recent(scope="global", limit=limit, kind=kind)
-            items = (quest_items + global_items)[-limit:]
+            items = quest_items + global_items
+            items.sort(key=lambda item: service._visible_card_sort_key(item, active_quest_id=context.quest_id))
+            items = items[:limit]
         else:
             quest_root = context.quest_root if resolved_scope == "quest" else None
             items = service.list_recent(scope=resolved_scope, quest_root=quest_root, limit=limit, kind=kind)
@@ -1058,6 +1101,23 @@ def build_artifact_server(context: McpContext) -> FastMCP:
     )
     def resolve_runtime_refs(comment: str | dict[str, Any] | None = None) -> dict[str, Any]:
         return service.resolve_runtime_refs(context.require_quest_root())
+
+    @server.tool(
+        name="get_paper_contract",
+        description=(
+            "Read the active paper contract, including selected outline, section result tables, evidence ledger items, "
+            "analysis inventory, and experiment matrix rows. Use detail='full' by default when writing or finalizing from paper evidence."
+        ),
+        annotations=_read_only_tool_annotations(title="Get paper contract"),
+    )
+    def get_paper_contract(
+        detail: str = "full",
+        comment: str | dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        return service.get_paper_contract(
+            context.require_quest_root(),
+            detail=detail,
+        )
 
     @server.tool(
         name="get_paper_contract_health",

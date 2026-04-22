@@ -58,6 +58,7 @@ _OVERSIZED_EVENT_PREFIX_BYTES = 4096
 _PROJECTION_SCHEMA_VERSION = 1
 _PROJECTION_BUILD_TOTAL_STEPS = 3
 _PROJECTION_REFRESH_THROTTLE_SECONDS = 1.0
+_SHARED_MEMORY_DOCUMENT_PREFIX = "sharedmemory::"
 _EVENT_TYPE_BYTES_RE = re.compile(rb'"(?:type|event_type)"\s*:\s*"([^"]+)"')
 _EVENT_TOOL_NAME_BYTES_RE = re.compile(rb'"tool_name"\s*:\s*"([^"]+)"')
 _EVENT_RUN_ID_BYTES_RE = re.compile(rb'"run_id"\s*:\s*"([^"]+)"')
@@ -398,7 +399,30 @@ class QuestService:
 
     def _configured_default_runner(self) -> str:
         config = ConfigManager(self.home).load_named("config")
-        return str(config.get("default_runner") or "codex").strip().lower() or "codex"
+        return self._resolve_enabled_runner_name(config.get("default_runner"))
+
+    def _resolve_enabled_runner_name(self, *candidates: Any) -> str:
+        runners = ConfigManager(self.home).load_runners_config()
+        seen: set[str] = set()
+        enabled: list[str] = []
+        for name, cfg in runners.items():
+            normalized = str(name or "").strip().lower()
+            if not normalized or normalized in seen:
+                continue
+            seen.add(normalized)
+            if isinstance(cfg, dict) and cfg.get("enabled") is not False:
+                enabled.append(normalized)
+
+        checked: set[str] = set()
+        for raw in [*candidates, "codex"]:
+            normalized = str(raw or "").strip().lower()
+            if not normalized or normalized in checked:
+                continue
+            checked.add(normalized)
+            cfg = runners.get(normalized)
+            if isinstance(cfg, dict) and cfg.get("enabled") is not False:
+                return normalized
+        return enabled[0] if enabled else "codex"
 
     def _quest_root(self, quest_id: str) -> Path:
         return self.quests_root / quest_id
@@ -1925,6 +1949,37 @@ class QuestService:
                 best_root = paper_root
         return best_root
 
+    @staticmethod
+    def _paper_line_state_from_root(paper_root: Path) -> dict[str, Any]:
+        path = paper_root / "paper_line_state.json"
+        payload = read_json(path, {})
+        return payload if isinstance(payload, dict) else {}
+
+    @staticmethod
+    def _filter_paper_evidence_items(
+        items: list[dict[str, Any]],
+        *,
+        selected_outline_ref: str | None = None,
+        paper_line_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        normalized_outline = str(selected_outline_ref or "").strip() or None
+        normalized_line = str(paper_line_id or "").strip() or None
+        filtered: list[dict[str, Any]] = []
+        for item in items:
+            if not isinstance(item, dict):
+                continue
+            item_outline = str(item.get("selected_outline_ref") or "").strip() or None
+            item_line = str(item.get("paper_line_id") or "").strip() or None
+            if normalized_line:
+                if item_line and item_line != normalized_line:
+                    continue
+                if not item_line and normalized_outline and item_outline and item_outline != normalized_outline:
+                    continue
+            elif normalized_outline and item_outline and item_outline != normalized_outline:
+                continue
+            filtered.append(dict(item))
+        return filtered
+
     def _outline_record_from_paper_root(self, paper_root: Path) -> dict[str, Any]:
         outline_root = paper_root / "outline"
         manifest_path = outline_root / "manifest.json"
@@ -1986,52 +2041,49 @@ class QuestService:
         return payload if isinstance(payload, dict) else {}
 
     def _paper_evidence_payload(self, quest_root: Path, workspace_root: Path) -> dict[str, Any] | None:
-        best_payload: dict[str, Any] | None = None
-        best_rank: tuple[str, float] = ("", -1.0)
-        for candidate in self._snapshot_workspace_candidates(quest_root, workspace_root):
-            paper_root = candidate / "paper"
-            ledger_json_path = paper_root / "evidence_ledger.json"
-            if not ledger_json_path.exists():
-                continue
-            payload = read_json(ledger_json_path, {})
-            if not isinstance(payload, dict) or not payload:
-                continue
-            items = [dict(item) for item in (payload.get("items") or []) if isinstance(item, dict)]
-            latest = max(
-                self._path_mtime(ledger_json_path),
-                self._path_mtime(paper_root / "evidence_ledger.md"),
-                self._path_mtime(paper_root),
-            )
-            rank = (str(payload.get("updated_at") or payload.get("created_at") or ""), latest)
-            if rank < best_rank:
-                continue
-            best_rank = rank
-            best_payload = {
-                "paper_root": str(paper_root),
-                "workspace_root": str(paper_root.parent),
-                "selected_outline_ref": str(payload.get("selected_outline_ref") or "").strip() or None,
-                "item_count": len(items),
-                "main_text_ready_count": sum(
-                    1
-                    for item in items
-                    if str(item.get("paper_role") or "").strip() == "main_text"
-                    and str(item.get("status") or "").strip().lower() in {"ready", "completed", "analyzed", "written", "recorded", "supported"}
-                ),
-                "appendix_item_count": sum(
-                    1 for item in items if str(item.get("paper_role") or "").strip() == "appendix"
-                ),
-                "unmapped_item_count": sum(
-                    1
-                    for item in items
-                    if not str(item.get("section_id") or "").strip() or not str(item.get("paper_role") or "").strip()
-                ),
-                "items": items[:40],
-                "paths": {
-                    "ledger_json": str(ledger_json_path),
-                    "ledger_md": str(paper_root / "evidence_ledger.md") if (paper_root / "evidence_ledger.md").exists() else None,
-                },
-            }
-        return best_payload
+        paper_root = self._best_paper_root(quest_root, workspace_root)
+        if paper_root is None:
+            return None
+        ledger_json_path = paper_root / "evidence_ledger.json"
+        if not ledger_json_path.exists():
+            return None
+        payload = read_json(ledger_json_path, {})
+        if not isinstance(payload, dict) or not payload:
+            return None
+        selected_outline_ref = str(payload.get("selected_outline_ref") or "").strip() or None
+        line_state = self._paper_line_state_from_root(paper_root)
+        paper_line_id = str(line_state.get("paper_line_id") or "").strip() or None
+        items = self._filter_paper_evidence_items(
+            [dict(item) for item in (payload.get("items") or []) if isinstance(item, dict)],
+            selected_outline_ref=selected_outline_ref,
+            paper_line_id=paper_line_id,
+        )
+        return {
+            "paper_root": str(paper_root),
+            "workspace_root": str(paper_root.parent),
+            "selected_outline_ref": selected_outline_ref,
+            "paper_line_id": paper_line_id,
+            "item_count": len(items),
+            "main_text_ready_count": sum(
+                1
+                for item in items
+                if str(item.get("paper_role") or "").strip() == "main_text"
+                and str(item.get("status") or "").strip().lower() in {"ready", "completed", "analyzed", "written", "recorded", "supported"}
+            ),
+            "appendix_item_count": sum(
+                1 for item in items if str(item.get("paper_role") or "").strip() == "appendix"
+            ),
+            "unmapped_item_count": sum(
+                1
+                for item in items
+                if not str(item.get("section_id") or "").strip() or not str(item.get("paper_role") or "").strip()
+            ),
+            "items": items[:40],
+            "paths": {
+                "ledger_json": str(ledger_json_path),
+                "ledger_md": str(paper_root / "evidence_ledger.md") if (paper_root / "evidence_ledger.md").exists() else None,
+            },
+        }
 
     def _paper_contract_payload(self, quest_root: Path, workspace_root: Path) -> dict[str, Any] | None:
         paper_root = self._best_paper_root(quest_root, workspace_root)
@@ -2101,6 +2153,7 @@ class QuestService:
         return {
             "paper_root": str(paper_root),
             "workspace_root": str(paper_root.parent),
+            "paper_line_id": str(self._paper_line_state_from_root(paper_root).get("paper_line_id") or "").strip() or None,
             "paper_branch": str(bundle_manifest.get("paper_branch") or "").strip() or current_branch(paper_root.parent),
             "source_branch": str(bundle_manifest.get("source_branch") or "").strip() or None,
             "selected_outline_ref": str(selected_outline.get("outline_id") or bundle_manifest.get("selected_outline_ref") or "").strip() or None,
@@ -4117,6 +4170,13 @@ class QuestService:
             if normalized_runner not in available_runners:
                 allowed = ", ".join(sorted(available_runners))
                 raise ValueError(f"Unsupported runner `{normalized_runner}`. Available runners: {allowed}.")
+            runners = ConfigManager(self.home).load_runners_config()
+            runner_cfg = runners.get(normalized_runner, {}) if isinstance(runners.get(normalized_runner), dict) else {}
+            if runner_cfg.get("enabled") is False:
+                fallback = self._resolve_enabled_runner_name(normalized_runner)
+                if fallback == normalized_runner:
+                    raise ValueError(f"Runner `{normalized_runner}` is disabled and no enabled fallback runner is available.")
+                normalized_runner = fallback
             if quest_data.get("default_runner") != normalized_runner:
                 quest_data["default_runner"] = normalized_runner
                 changed = True
@@ -4815,12 +4875,16 @@ class QuestService:
                 },
             }
 
+        shared_source_quest_id = None
+        parsed_shared_memory = self._parse_shared_memory_document_id(document_id)
+        if parsed_shared_memory is not None:
+            shared_source_quest_id = parsed_shared_memory[0]
         path, writable, scope, source_kind = self.resolve_document(quest_id, document_id)
         renderer_hint, mime_type = self._renderer_hint_for(path)
         is_text = self._is_text_document(path, mime_type, renderer_hint)
         content = read_text(path) if is_text else ""
         revision = f"sha256:{sha256_text(content)}" if is_text else f"sha256:{hashlib.sha256(path.read_bytes()).hexdigest()}"
-        return {
+        payload = {
             "document_id": document_id,
             "quest_id": quest_id,
             "title": path.name if "::" in document_id else document_id,
@@ -4842,9 +4906,17 @@ class QuestService:
                 "renderer_hint": renderer_hint,
             },
         }
+        if shared_source_quest_id:
+            payload["source_quest_id"] = shared_source_quest_id
+            if isinstance(payload.get("meta"), dict):
+                payload["meta"]["source_quest_id"] = shared_source_quest_id
+                payload["meta"]["shared"] = True
+        return payload
 
     def resolve_document(self, quest_id: str, document_id: str) -> tuple[Path, bool, str, str]:
         quest_root = self._require_initialized_quest_root(quest_id)
+        if document_id.startswith(_SHARED_MEMORY_DOCUMENT_PREFIX):
+            return self._resolve_shared_memory_document(document_id)
         workspace_root = self.active_workspace_root(quest_root)
         resolution_root = self._document_resolution_root(
             quest_root=quest_root,
@@ -4860,6 +4932,32 @@ class QuestService:
             if legacy_relative and legacy_relative.startswith("literature/arxiv/"):
                 return self._resolve_document(quest_root, f"questpath::{legacy_relative}")
             raise
+
+    def _resolve_shared_memory_document(self, document_id: str) -> tuple[Path, bool, str, str]:
+        parsed = self._parse_shared_memory_document_id(document_id)
+        if parsed is None:
+            raise FileNotFoundError(f"Unknown shared memory document `{document_id}`.")
+        source_quest_id, relative = parsed
+        source_quest_root = self._require_initialized_quest_root(source_quest_id)
+        root = (source_quest_root / "memory").resolve()
+        path = (root / relative).resolve()
+        if path != root and root not in path.parents:
+            raise ValueError("Document ID escapes shared quest memory.")
+        if not path.exists() or not path.is_file():
+            raise FileNotFoundError(f"Unknown shared quest memory `{source_quest_id}:{relative}`.")
+        return path, False, "shared_quest_memory", "shared_quest_memory"
+
+    @staticmethod
+    def _parse_shared_memory_document_id(document_id: str) -> tuple[str, str] | None:
+        raw = str(document_id or "").strip()
+        if not raw.startswith(_SHARED_MEMORY_DOCUMENT_PREFIX):
+            return None
+        _prefix, source_quest_id, relative = (raw.split("::", 2) + ["", "", ""])[:3]
+        source_quest_id = source_quest_id.strip()
+        relative = relative.lstrip("/")
+        if not source_quest_id or not relative:
+            return None
+        return source_quest_id, relative
 
     def save_document(self, quest_id: str, document_id: str, content: str, previous_revision: str | None = None) -> dict:
         current = self.open_document(quest_id, document_id)
