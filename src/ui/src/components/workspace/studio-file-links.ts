@@ -12,6 +12,8 @@ const INTERNAL_FILE_PREFIXES = ['dsfile://', 'ds://file/']
 const FILE_API_PATH_RE = /(?:^|\/)api\/v1\/files\/([^/?#]+)(?:\/content)?\/?$/i
 const QUEST_DOCUMENT_ASSET_RE = /^\/api\/quests\/([^/]+)\/documents\/asset$/i
 const ABSOLUTE_URL_RE = /^[a-zA-Z][a-zA-Z\d+.-]*:/
+const RELATIVE_FILE_REFERENCE_RE =
+  /^(?:\.\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.(?:md|markdown|json|yaml|yml|txt|py|ts|tsx|js|jsx|sh|bib|tex)$/i
 
 function safeDecode(value: string): string {
   try {
@@ -62,6 +64,11 @@ function filePathFromDocumentId(documentId: string): string | null {
   }
   if (raw.startsWith('memory::')) {
     return normalizeProjectRelativePath(`memory/${raw.slice('memory::'.length)}`)
+  }
+  if (raw.startsWith('sharedmemory::')) {
+    const [, sourceQuestId = '', relative = ''] = raw.split('::', 3)
+    const normalizedRelative = relative.replace(/^\/+/, '')
+    return normalizeProjectRelativePath(`${sourceQuestId || 'shared'}/memory/${normalizedRelative}`)
   }
   if (raw.startsWith('git::')) {
     const [, , relative = ''] = raw.split('::', 3)
@@ -191,4 +198,58 @@ function extractQuestRelativePath(pathname: string, questId?: string | null): st
   }
 
   return null
+}
+
+export function isLikelyWorkspaceFileReference(
+  href: string,
+  options?: { currentOrigin?: string | null; questId?: string | null }
+): boolean {
+  if (resolveStudioFileLinkTarget(href, options)) {
+    return true
+  }
+
+  const rawHref = String(href || '').trim()
+  if (!rawHref || rawHref.startsWith('#')) return false
+  if (rawHref.startsWith('path::') || rawHref.startsWith('questpath::') || rawHref.startsWith('memory::') || rawHref.startsWith('git::')) {
+    return true
+  }
+
+  const targetQuestId = String(options?.questId || '').trim()
+  if (targetQuestId && rawHref.includes(`/quests/${targetQuestId}/`)) {
+    return true
+  }
+
+  if (RELATIVE_FILE_REFERENCE_RE.test(stripQueryAndHash(rawHref))) {
+    return true
+  }
+
+  return false
+}
+
+export function getWorkspaceFileReferenceLabel(
+  href: string,
+  options?: { currentOrigin?: string | null; questId?: string | null }
+): string | null {
+  const target = resolveStudioFileLinkTarget(href, options)
+  if (target?.kind === 'file_path') {
+    return target.filePath
+  }
+  if (target?.kind === 'file_id') {
+    return null
+  }
+
+  const rawHref = String(href || '').trim()
+  if (!rawHref) return null
+
+  const documentPath = filePathFromDocumentId(rawHref)
+  if (documentPath) return documentPath
+
+  const targetQuestId = String(options?.questId || '').trim()
+  if (targetQuestId) {
+    const questRelative = extractQuestRelativePath(rawHref, targetQuestId)
+    if (questRelative) return questRelative
+  }
+
+  const normalized = normalizeProjectRelativePath(stripQueryAndHash(rawHref))
+  return RELATIVE_FILE_REFERENCE_RE.test(normalized) ? normalized : null
 }

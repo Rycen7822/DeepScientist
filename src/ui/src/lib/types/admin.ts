@@ -188,6 +188,9 @@ export type AdminSystemHardwarePayload = {
     cuda_visible_devices?: string | null
     include_system_hardware_in_prompt?: boolean
   }
+  memory_preferences?: {
+    read_visibility_mode?: string
+  }
   prompt_hardware_summary?: string
   latest_sample?: Record<string, unknown> | null
   recent_stats?: AdminHardwareRecentStats | null

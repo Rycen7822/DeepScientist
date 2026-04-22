@@ -58,6 +58,7 @@ function renderMemoryItems(items: unknown[]) {
           const title = asString(item.title) || asString(item.id) || `Memory ${index + 1}`
           const kind = asString(item.type) || asString(item.kind)
           const scope = asString(item.scope)
+          const sourceQuestId = asString(item.source_quest_id)
           const updatedAt = asString(item.updated_at)
           const excerpt = asString(item.excerpt)
           const path = asString(item.path)
@@ -72,6 +73,7 @@ function renderMemoryItems(items: unknown[]) {
                   <div className="mt-1 flex flex-wrap gap-1.5">
                     {kind ? <DsToolPill tone="muted">{kind}</DsToolPill> : null}
                     {scope ? <DsToolPill tone="muted">{scope}</DsToolPill> : null}
+                    {sourceQuestId ? <DsToolPill tone="muted">{sourceQuestId}</DsToolPill> : null}
                   </div>
                 </div>
                 {updatedAt ? <div className="text-[10px] text-[var(--text-tertiary)]">{formatDate(updatedAt)}</div> : null}
@@ -134,6 +136,7 @@ export function McpMemoryToolView({ toolContent }: ToolViewProps) {
   const itemTitle = asString(memoryCard?.title) || asString(args.title)
   const memoryKind = asString(memoryCard?.type) || asString(memoryCard?.kind) || asString(args.kind)
   const scope = asString(memoryCard?.scope) || asString(args.scope)
+  const sourceQuestId = asString(memoryCard?.source_quest_id)
   const tags = asStringArray((memoryCard?.metadata as Record<string, unknown> | undefined)?.tags ?? args.tags)
   const excerpt = asString(memoryCard?.excerpt) || asString(memoryCard?.body) || asString(args.body)
   const updatedAt = asString(memoryCard?.updated_at)
@@ -192,6 +195,7 @@ export function McpMemoryToolView({ toolContent }: ToolViewProps) {
                   <div className="mt-2 flex flex-wrap gap-1.5">
                     {memoryKind ? <DsToolPill tone="muted">{memoryKind}</DsToolPill> : null}
                     {scope ? <DsToolPill tone="muted">{scope}</DsToolPill> : null}
+                    {sourceQuestId ? <DsToolPill tone="muted">{sourceQuestId}</DsToolPill> : null}
                     {cardId ? <DsToolPill tone="muted">{cardId}</DsToolPill> : null}
                   </div>
                 </div>

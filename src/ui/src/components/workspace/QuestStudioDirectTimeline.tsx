@@ -29,8 +29,12 @@ import { QuestBashExecOperation } from './QuestBashExecOperation'
 import { QuestMessageAttachments } from './QuestMessageAttachments'
 import { QuestUserReadStateMeta } from './QuestUserReadStateMeta'
 import { StudioToolCard } from './StudioToolCards'
-import { dispatchWorkspaceLeftVisibility, dispatchWorkspaceRevealFile } from './workspace-events'
-import { resolveStudioFileLinkTarget } from './studio-file-links'
+import {
+  getWorkspaceFileReferenceLabel,
+  isLikelyWorkspaceFileReference,
+  resolveStudioFileLinkTarget,
+} from './studio-file-links'
+import { openWorkspaceFileReference } from './open-workspace-file-reference'
 
 type QuestStudioDirectTimelineProps = {
   questId: string
@@ -206,21 +210,108 @@ function StreamMarkdownBlock({
   )
 }
 
+const STUDIO_FILE_PATH_RE =
+  /(?:https?:\/\/[^\s)\]]+\/ssdwork\/DeepScientist\/quests\/[^\s)\]]+|\/ssdwork\/DeepScientist\/quests\/[^\s)\]]+|(?:path|questpath|memory|git)::[^\s)\]]+|(?:^|[\s(])(?:\.\/)?(?:[A-Za-z0-9._-]+\/)*[A-Za-z0-9._-]+\.(?:md|markdown|json|yaml|yml|txt|py|ts|tsx|js|jsx|sh|bib|tex))/g
+
+function StudioInlineFileText({
+  questId,
+  content,
+  onOpenFile,
+}: {
+  questId: string
+  content: string
+  onOpenFile: (href: string) => void
+}) {
+  const parts: Array<{ kind: 'text' | 'file'; value: string }> = []
+  let lastIndex = 0
+  for (const match of content.matchAll(STUDIO_FILE_PATH_RE)) {
+    const raw = match[0]
+    const index = match.index ?? 0
+    const normalizedMatch = raw.startsWith(' ') || raw.startsWith('(') ? raw.slice(1) : raw
+    const prefixLength = raw.length - normalizedMatch.length
+    const target = resolveStudioFileLinkTarget(normalizedMatch, {
+      currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+      questId,
+    })
+    if (!target) continue
+    if (index > lastIndex) {
+      parts.push({ kind: 'text', value: content.slice(lastIndex, index + prefixLength) })
+    }
+    parts.push({ kind: 'file', value: normalizedMatch })
+    lastIndex = index + raw.length
+  }
+  if (parts.length === 0) {
+    return <>{content}</>
+  }
+  if (lastIndex < content.length) {
+    parts.push({ kind: 'text', value: content.slice(lastIndex) })
+  }
+
+  return (
+    <>
+      {parts.map((part, index) =>
+        part.kind === 'text' ? (
+          <span key={`text:${index}`}>{part.value}</span>
+        ) : (() => {
+            const label =
+              getWorkspaceFileReferenceLabel(part.value, {
+                currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+                questId,
+              }) || part.value
+            return (
+              <button
+                key={`file:${index}:${part.value}`}
+                type="button"
+                title={label}
+                data-studio-file-link="true"
+                className="inline cursor-pointer border-0 bg-transparent p-0 text-left align-baseline font-inherit text-[inherit] underline decoration-current underline-offset-[0.18em] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current/40 focus-visible:ring-offset-1"
+                onClick={(event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onOpenFile(part.value)
+                }}
+                onContextMenu={(event) => {
+                  event.preventDefault()
+                }}
+              >
+                {label}
+              </button>
+            )
+          })()
+      )}
+    </>
+  )
+}
+
 function StudioMessageBlock({
   block,
+  questId,
   markdownComponents,
+  onOpenFile,
 }: {
   block: Extract<StudioTurnBlock, { kind: 'message' }>
+  questId: string
   markdownComponents?: Components
+  onOpenFile: (href: string) => void
 }) {
   return (
     <div className="min-w-0 overflow-hidden pl-0.5">
-      <StreamMarkdownBlock
-        content={block.item.content || ''}
-        streaming={Boolean(block.item.stream)}
-        className="ds-copilot-markdown prose prose-sm prose-p:my-0 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-1.5 prose-pre:rounded-md prose-pre:px-3 prose-pre:py-2 prose-code:text-[12px] max-w-none break-words text-[12.5px] leading-[1.72] [overflow-wrap:anywhere] text-foreground dark:prose-invert"
-        components={markdownComponents}
-      />
+      {Boolean(block.item.stream) ? (
+        <div className="ds-copilot-markdown prose prose-sm max-w-none whitespace-pre-wrap break-words text-[12.5px] leading-[1.72] [overflow-wrap:anywhere] text-foreground dark:prose-invert">
+          <StudioInlineFileText
+            questId={questId}
+            content={block.item.content || ''}
+            onOpenFile={onOpenFile}
+          />
+        </div>
+      ) : (
+        <StreamMarkdownBlock
+          content={block.item.content || ''}
+          streaming={false}
+          className="ds-copilot-markdown prose prose-sm prose-p:my-0 prose-headings:my-2 prose-ul:my-1 prose-ol:my-1 prose-li:my-0 prose-pre:my-1.5 prose-pre:rounded-md prose-pre:px-3 prose-pre:py-2 prose-code:text-[12px] max-w-none break-words text-[12.5px] leading-[1.72] [overflow-wrap:anywhere] text-foreground dark:prose-invert"
+          components={markdownComponents}
+        />
+      )}
     </div>
   )
 }
@@ -411,7 +502,17 @@ function AssistantTurn({
 
         {turn.blocks.map((block) => {
           if (block.kind === 'message') {
-            return <StudioMessageBlock key={block.id} block={block} markdownComponents={markdownComponents} />
+            return (
+              <StudioMessageBlock
+                key={block.id}
+                block={block}
+                questId={questId}
+                markdownComponents={markdownComponents}
+                onOpenFile={(href) => {
+                  void handleOpenStudioFile(href)
+                }}
+              />
+            )
           }
           if (block.kind === 'reasoning') {
             return <StudioReasoningBlock key={block.id} block={block} markdownComponents={markdownComponents} />
@@ -561,90 +662,33 @@ export function QuestStudioDirectTimeline({
 
   const handleOpenStudioFile = React.useCallback(
     async (href: string) => {
-      const target = resolveStudioFileLinkTarget(href, {
+      return openWorkspaceFileReference({
+        href,
+        projectId: questId,
         currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
-        questId,
+        findNode,
+        findNodeByPath,
+        refreshTree,
+        openFileInTab,
+        onMissing: (detail) => {
+          addToast({
+            title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
+            message:
+              detail.kind === 'file_id'
+                ? t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.')
+                : detail.value,
+            variant: 'error',
+          })
+        },
+        onOpenFailed: ({ error }) => {
+          addToast({
+            title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
+            message:
+              error || t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.'),
+            variant: 'error',
+          })
+        },
       })
-      if (!target) {
-        return false
-      }
-
-      let node =
-        target.kind === 'file_id' ? findNode(target.fileId) : findNodeByPath(target.filePath)
-
-      if (!node) {
-        await refreshTree()
-        const refreshedStore = useFileTreeStore.getState()
-        node =
-          target.kind === 'file_id'
-            ? refreshedStore.findNode(target.fileId)
-            : refreshedStore.findNodeByPath(target.filePath)
-      }
-
-      if (!node) {
-        addToast({
-          title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
-          message:
-            target.kind === 'file_id'
-              ? t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.')
-              : target.filePath,
-          variant: 'error',
-        })
-        return true
-      }
-
-      dispatchWorkspaceLeftVisibility({ projectId: questId, visible: true })
-      if (node.path) {
-        const revealDetail = {
-          projectId: questId,
-          filePath: node.path,
-          label: node.name,
-        }
-        dispatchWorkspaceRevealFile(revealDetail)
-        if (typeof window !== 'undefined') {
-          window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 50)
-          window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 180)
-          window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 360)
-        }
-      }
-
-      const revealNodeInExplorer = () => {
-        const store = useFileTreeStore.getState()
-        store.expandToFile(node.id)
-        store.select(node.id)
-        store.setFocused(node.id)
-        store.highlightFile(node.id)
-      }
-
-      const retriggerExplorerReveal = () => {
-        const store = useFileTreeStore.getState()
-        store.clearHighlight()
-        revealNodeInExplorer()
-      }
-
-      revealNodeInExplorer()
-      if (typeof window !== 'undefined') {
-        window.setTimeout(retriggerExplorerReveal, 80)
-        window.setTimeout(retriggerExplorerReveal, 220)
-      }
-
-      if (node.type === 'folder') {
-        useFileTreeStore.getState().expand(node.id)
-        return true
-      }
-
-      useFileTreeStore.getState().markFileRead(node.id)
-      const result = await openFileInTab(node, {
-        customData: { projectId: questId },
-      })
-      if (!result.success) {
-        addToast({
-          title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
-          message: result.error || t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.'),
-          variant: 'error',
-        })
-      }
-      return true
     },
     [addToast, findNode, findNodeByPath, openFileInTab, questId, refreshTree, t]
   )
@@ -660,12 +704,24 @@ export function QuestStudioDirectTimeline({
             })
           : null
         const shouldOpenInNewTab = !fileTarget && /^(https?:)?\/\//i.test(rawHref)
+        const likelyFileRef = rawHref
+          ? isLikelyWorkspaceFileReference(rawHref, {
+              currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+              questId,
+            })
+          : false
+        const fileLabel = rawHref
+          ? getWorkspaceFileReferenceLabel(rawHref, {
+              currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+              questId,
+            })
+          : null
 
-        if (fileTarget) {
+        if (fileTarget || likelyFileRef) {
           return (
             <button
               type="button"
-              title={title || rawHref}
+              title={title || fileLabel || undefined}
               data-studio-file-link="true"
               className={cn(
                 'inline cursor-pointer border-0 bg-transparent p-0 text-left align-baseline font-inherit text-[inherit] underline decoration-current underline-offset-[0.18em] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current/40 focus-visible:ring-offset-1',
@@ -675,6 +731,9 @@ export function QuestStudioDirectTimeline({
                 event.preventDefault()
                 event.stopPropagation()
                 void handleOpenStudioFile(rawHref)
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault()
               }}
             >
               {children}

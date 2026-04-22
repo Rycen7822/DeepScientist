@@ -139,7 +139,7 @@ import { mergeApplyPatchChanges, parseApplyPatchFiles } from './lib/patch-utils'
 import { resolveToolCategory } from './lib/tool-map'
 import { ChatScrollProvider } from './lib/chat-scroll-context'
 import { resolveStudioFileLinkTarget } from '@/components/workspace/studio-file-links'
-import { dispatchWorkspaceLeftVisibility, dispatchWorkspaceRevealFile } from '@/components/workspace/workspace-events'
+import { openWorkspaceFileReference } from '@/components/workspace/open-workspace-file-reference'
 import { ensureDefaultAgent, resolveAgentMention } from '@/lib/utils/agent-mentions'
 import type {
   AttachmentsContent,
@@ -8427,92 +8427,38 @@ export function AiManusChatView({
     (href: string) => {
       const resolvedProjectId = String(projectId || '').trim()
       if (!resolvedProjectId) return false
-
       const target = resolveStudioFileLinkTarget(href, {
         currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
         questId: resolvedProjectId,
       })
       if (!target) return false
 
-      void (async () => {
-        let node =
-          target.kind === 'file_id'
-            ? findNode(target.fileId)
-            : findNodeByPath(target.filePath)
-
-        if (!node) {
-          await useFileTreeStore.getState().refresh()
-          const refreshedStore = useFileTreeStore.getState()
-          node =
-            target.kind === 'file_id'
-              ? refreshedStore.findNode(target.fileId)
-              : refreshedStore.findNodeByPath(target.filePath)
-        }
-
-        if (!node) {
+      void openWorkspaceFileReference({
+        href,
+        projectId: resolvedProjectId,
+        currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+        findNode,
+        findNodeByPath,
+        refreshTree: useFileTreeStore.getState().refresh,
+        openFileInTab,
+        onMissing: (detail) => {
           addToast({
             type: 'error',
             title: 'File not found',
             description:
-              target.kind === 'file_id'
+              detail.kind === 'file_id'
                 ? 'The linked workspace file is not available in Explorer yet.'
-                : target.filePath,
+                : detail.value,
           })
-          return
-        }
-
-        dispatchWorkspaceLeftVisibility({ projectId: resolvedProjectId, visible: true })
-        if (node.path) {
-          const revealDetail = {
-            projectId: resolvedProjectId,
-            filePath: node.path,
-            label: node.name,
-          }
-          dispatchWorkspaceRevealFile(revealDetail)
-          if (typeof window !== 'undefined') {
-            window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 50)
-            window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 180)
-            window.setTimeout(() => dispatchWorkspaceRevealFile(revealDetail), 360)
-          }
-        }
-
-        const revealNodeInExplorer = () => {
-          const store = useFileTreeStore.getState()
-          store.expandToFile(node.id)
-          store.select(node.id)
-          store.setFocused(node.id)
-          store.highlightFile(node.id)
-        }
-
-        const retriggerExplorerReveal = () => {
-          const store = useFileTreeStore.getState()
-          store.clearHighlight()
-          revealNodeInExplorer()
-        }
-
-        revealNodeInExplorer()
-        if (typeof window !== 'undefined') {
-          window.setTimeout(retriggerExplorerReveal, 80)
-          window.setTimeout(retriggerExplorerReveal, 220)
-        }
-
-        if (node.type === 'folder') {
-          useFileTreeStore.getState().expand(node.id)
-          return
-        }
-
-        useFileTreeStore.getState().markFileRead(node.id)
-        const result = await openFileInTab(node, {
-          customData: { projectId: resolvedProjectId },
-        })
-        if (!result.success) {
+        },
+        onOpenFailed: ({ error }) => {
           addToast({
             type: 'error',
             title: 'Unable to open file',
-            description: result.error || 'The linked workspace file could not be opened.',
+            description: error || 'The linked workspace file could not be opened.',
           })
-        }
-      })()
+        },
+      })
 
       return true
     },

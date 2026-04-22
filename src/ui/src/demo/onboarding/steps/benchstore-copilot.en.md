@@ -8,3 +8,5 @@ Use it in two common ways:
 - if you already picked a benchmark, ask it to keep filling the launch details from the task, install state, and local paths
 
 After you start it, this side turns into a live copilot and writes suggestions back into the launch form.
+
+If you already have papers, docs, or config files, you can drag them into the input box so the agent can use them too.

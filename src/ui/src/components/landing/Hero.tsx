@@ -20,6 +20,7 @@ import { useUILanguageStore } from '@/lib/stores/ui-language'
 import { runtimeVersion } from '@/lib/runtime/quest-runtime'
 import { normalizeBuiltinRunnerName, runnerLabel } from '@/lib/runnerBranding'
 import type { StartResearchTemplate } from '@/lib/startResearch'
+import type { QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
 import { getHeroBundle } from './hero-content'
 import type { ConnectorAvailabilitySnapshot, QuestSummary } from '@/types'
 import type { BenchEntry, BenchSetupPacket } from '@/lib/types/benchstore'
@@ -97,6 +98,19 @@ function buildBenchstoreSuggestedFormFromEntry(entry: BenchEntry | null | undefi
     need_research_paper: entry.requires_paper ?? true,
     user_language: locale,
   }
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onerror = () => reject(reader.error || new Error('Failed to read file.'))
+    reader.onload = () => {
+      const result = String(reader.result || '')
+      const base64 = result.includes(',') ? result.split(',', 2)[1] : result
+      resolve(base64)
+    }
+    reader.readAsDataURL(file)
+  })
 }
 
 export default function Hero(props: {
@@ -279,9 +293,14 @@ export default function Hero(props: {
       form?: StartResearchTemplate | null
       setupPacket?: BenchSetupPacket | null
       entry?: BenchEntry | null
+      attachments?: QuestMessageAttachmentDraft[]
+      createOnly?: boolean
     }) => {
       const normalizedMessage = args.message.trim()
-      if (!normalizedMessage) return null
+      const pendingAttachments = (args.attachments || []).filter(
+        (item) => item.status === 'success' && item.file
+      )
+      if (!normalizedMessage && pendingAttachments.length === 0 && !args.createOnly) return null
       const suggestedForm =
         args.setupPacket?.suggested_form && typeof args.setupPacket.suggested_form === 'object'
           ? args.setupPacket.suggested_form
@@ -299,8 +318,35 @@ export default function Hero(props: {
             ? buildBenchstoreContextFromEntry(args.entry)
             : null
 
+      const uploadAttachmentDrafts = async (questId: string) => {
+        const uploadedDraftIds: string[] = []
+        for (const attachment of pendingAttachments) {
+          if (!attachment.file) continue
+          const contentBase64 = await fileToBase64(attachment.file)
+          const payload = await client.uploadChatAttachment(questId, {
+            draft_id: attachment.draftId,
+            file_name: attachment.name,
+            mime_type: attachment.contentType || undefined,
+            content_base64: contentBase64,
+          })
+          if (payload.ok) {
+            uploadedDraftIds.push(attachment.draftId)
+          }
+        }
+        return uploadedDraftIds
+      }
+
       if (setupQuestId) {
-        await client.sendChat(setupQuestId, normalizedMessage)
+        if (!args.createOnly) {
+          const attachmentDraftIds = await uploadAttachmentDrafts(setupQuestId)
+          await client.sendChat(
+            setupQuestId,
+            normalizedMessage,
+            undefined,
+            undefined,
+            attachmentDraftIds
+          )
+        }
         return setupQuestId
       }
 
@@ -318,8 +364,7 @@ export default function Hero(props: {
           title: `SetupAgent · ${titleBase}`,
           quest_id: setupQuestIdValue,
           source: 'web-react',
-          auto_start: true,
-          initial_message: normalizedMessage,
+          auto_start: false,
           auto_bind_latest_connectors: false,
           startup_contract: {
             schema_version: 1,
@@ -340,6 +385,16 @@ export default function Hero(props: {
           },
         })
         setSetupQuestId(result.snapshot.quest_id)
+        if (!args.createOnly) {
+          const attachmentDraftIds = await uploadAttachmentDrafts(result.snapshot.quest_id)
+          await client.sendChat(
+            result.snapshot.quest_id,
+            normalizedMessage,
+            undefined,
+            undefined,
+            attachmentDraftIds
+          )
+        }
         return result.snapshot.quest_id
       } finally {
         setSetupQuestCreating(false)
@@ -601,12 +656,14 @@ export default function Hero(props: {
         onClose={() => setActiveDialog(null)}
         setupQuestId={setupQuestId}
         setupQuestCreating={setupQuestCreating}
-        onRequestSetupAgent={async ({ message, entry, setupPacket }) => {
+        onRequestSetupAgent={async ({ message, entry, setupPacket, attachments, createOnly }) => {
           await ensureSetupQuest({
             message,
             source: 'benchstore',
             entry: entry ?? null,
             setupPacket: setupPacket ?? benchSetupPacket,
+            attachments,
+            createOnly,
           })
         }}
         onStartWithSetupPacket={async (setupPacket) => {
@@ -644,12 +701,14 @@ export default function Hero(props: {
         setupPacket={benchSetupPacket}
         setupQuestId={setupQuestId}
         setupQuestCreating={setupQuestCreating}
-        onRequestSetupAgent={async ({ message, form, setupPacket }) => {
+        onRequestSetupAgent={async ({ message, form, setupPacket, attachments, createOnly }) => {
           await ensureSetupQuest({
             message,
             source: setupPacket ? 'benchstore' : 'manual',
             form,
             setupPacket,
+            attachments,
+            createOnly,
           })
         }}
         onCreate={async (payload) => {

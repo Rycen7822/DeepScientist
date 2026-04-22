@@ -1,8 +1,8 @@
 import * as React from 'react'
-import { ArrowUpRight, Sparkles } from 'lucide-react'
+import { Sparkles } from 'lucide-react'
 
-import { Button } from '@/components/ui/button'
-import { Textarea } from '@/components/ui/textarea'
+import { QuestCopilotComposer } from '@/components/workspace/QuestCopilotComposer'
+import type { QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
 import type { BenchSetupPacket } from '@/lib/types/benchstore'
 
 type SetupAgentRailProps = {
@@ -11,7 +11,14 @@ type SetupAgentRailProps = {
   loading?: boolean
   error?: string | null
   assistantLabel?: string | null
-  onStartAssist: (message: string) => Promise<void> | void
+  onStartAssist: (message: string, attachments?: QuestMessageAttachmentDraft[]) => Promise<void> | void
+}
+
+const MAX_ATTACHMENTS = 10
+const MAX_ATTACHMENT_SIZE_BYTES = 20 * 1024 * 1024
+
+function makeDraftId() {
+  return `setup-draft-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
 function copy(locale: 'en' | 'zh') {
@@ -43,14 +50,83 @@ function copy(locale: 'en' | 'zh') {
 export function SetupAgentRail(props: SetupAgentRailProps) {
   const t = copy(props.locale)
   const [input, setInput] = React.useState('')
+  const [attachments, setAttachments] = React.useState<QuestMessageAttachmentDraft[]>([])
+  const [localError, setLocalError] = React.useState<string | null>(null)
+  const fallback =
+    props.locale === 'zh'
+      ? '请根据当前启动表单内容，帮我整理并补齐最关键的启动信息。'
+      : 'Please use the current start form and help me complete the most important launch details.'
+
+  React.useEffect(() => {
+    return () => {
+      attachments.forEach((item) => {
+        if (item.previewUrl?.startsWith('blob:')) {
+          URL.revokeObjectURL(item.previewUrl)
+        }
+      })
+    }
+  }, [attachments])
 
   const handleStart = React.useCallback(async () => {
-    const fallback =
-      props.locale === 'zh'
-        ? '请根据当前启动表单内容，帮我整理并补齐最关键的启动信息。'
-        : 'Please use the current start form and help me complete the most important launch details.'
-    await props.onStartAssist(input.trim() || fallback)
-  }, [input, props])
+    await props.onStartAssist(input.trim() || fallback, attachments)
+    setInput('')
+    attachments.forEach((item) => {
+      if (item.previewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(item.previewUrl)
+      }
+    })
+    setAttachments([])
+    setLocalError(null)
+  }, [attachments, fallback, input, props])
+
+  const handleQueueFiles = React.useCallback((files: File[]) => {
+    if (!files.length) return
+    setLocalError(null)
+    setAttachments((current) => {
+      const availableSlots = Math.max(0, MAX_ATTACHMENTS - current.length)
+      const nextFiles = files.slice(0, availableSlots)
+      const nextDrafts: QuestMessageAttachmentDraft[] = []
+      for (const file of nextFiles) {
+        if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+          setLocalError(
+            props.locale === 'zh'
+              ? '每个文件都必须小于 20 MB。'
+              : 'Each file must be under 20 MB.'
+          )
+          continue
+        }
+        nextDrafts.push({
+          draftId: makeDraftId(),
+          name: file.name,
+          contentType: file.type || undefined,
+          sizeBytes: file.size,
+          status: 'success',
+          progress: 100,
+          kind: String(file.type || '').startsWith('image/') ? 'image' : 'path',
+          previewUrl: String(file.type || '').startsWith('image/') ? URL.createObjectURL(file) : null,
+          file,
+        })
+      }
+      if (files.length > nextFiles.length) {
+        setLocalError(
+          props.locale === 'zh'
+            ? `最多只能附带 ${MAX_ATTACHMENTS} 个文件。`
+            : `You can attach up to ${MAX_ATTACHMENTS} files.`
+        )
+      }
+      return [...current, ...nextDrafts]
+    })
+  }, [props.locale])
+
+  const handleRemoveAttachment = React.useCallback((draftId: string) => {
+    setAttachments((current) => {
+      const target = current.find((item) => item.draftId === draftId)
+      if (target?.previewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(target.previewUrl)
+      }
+      return current.filter((item) => item.draftId !== draftId)
+    })
+  }, [])
 
   return (
     <div className="ai-manus-root ai-manus-copilot ai-manus-embedded flex h-full min-h-0 flex-col overflow-hidden rounded-[24px] border border-[var(--border-light)] bg-[var(--background-surface-strong)] shadow-[0_24px_70px_-54px_var(--shadow-M)] backdrop-blur-xl">
@@ -77,20 +153,23 @@ export function SetupAgentRail(props: SetupAgentRailProps) {
 
       <div className="shrink-0 border-t border-[var(--border-light)] px-4 py-4">
         <div className="space-y-3">
-          <Textarea
-            value={input}
-            onChange={(event) => setInput(event.target.value)}
-            placeholder={t.placeholder}
-            className="min-h-[140px] rounded-[16px] border-[var(--border-light)] bg-white/72 text-sm leading-6 text-[var(--text-primary)]"
-          />
           <div className="text-xs text-[var(--text-tertiary)]">{t.note}</div>
-          {props.error ? <div className="text-sm text-[var(--function-error)]">{props.error}</div> : null}
-        </div>
-        <div className="mt-3 flex justify-end">
-          <Button onClick={() => void handleStart()} isLoading={props.loading} className="rounded-full">
-            <ArrowUpRight className="h-4 w-4" />
-            {t.cta}
-          </Button>
+          {props.error || localError ? (
+            <div className="text-sm text-[var(--function-error)]">{props.error || localError}</div>
+          ) : null}
+          <QuestCopilotComposer
+            value={input}
+            onValueChange={setInput}
+            onSubmit={handleStart}
+            submitting={props.loading}
+            placeholder={t.placeholder}
+            enterHint={props.locale === 'zh' ? '可直接拖入文件 · Enter 发送 · Shift+Enter 换行' : 'Drop files directly · Enter to send · Shift+Enter for newline'}
+            sendLabel={t.cta}
+            stopLabel={props.locale === 'zh' ? '停止' : 'Stop'}
+            attachments={attachments}
+            onQueueFiles={handleQueueFiles}
+            onRemoveAttachment={handleRemoveAttachment}
+          />
         </div>
       </div>
     </div>

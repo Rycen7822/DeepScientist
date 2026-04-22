@@ -28,6 +28,9 @@ export function QuestionPrompt({
   compact,
   submitLabel,
   submittingLabel,
+  resolveWorkspaceFileLink,
+  isWorkspaceFileLink,
+  onFileLinkClick,
   onSubmit,
 }: {
   toolCallId: string
@@ -38,23 +41,35 @@ export function QuestionPrompt({
   compact?: boolean
   submitLabel?: string
   submittingLabel?: string
+  resolveWorkspaceFileLink?: (href: string) => boolean
+  isWorkspaceFileLink?: (href: string) => boolean
+  onFileLinkClick?: (href: string) => boolean
   onSubmit?: (answers: QuestionPromptAnswerMap) => Promise<void>
 }) {
   const parsedArgs = args as QuestionPromptArgs
   const questions = useMemo(() => normalizeQuestions(parsedArgs), [parsedArgs])
   const promptDescriptionValue = String(parsedArgs.description || '').trim()
   const promptDescriptionHtml = useMemo(
-    () => (promptDescriptionValue ? renderMarkdown(promptDescriptionValue) : ''),
-    [promptDescriptionValue]
+    () =>
+      promptDescriptionValue
+        ? renderMarkdown(promptDescriptionValue, {
+            resolveWorkspaceFileLink,
+            isWorkspaceFileLink,
+          })
+        : '',
+    [promptDescriptionValue, isWorkspaceFileLink, resolveWorkspaceFileLink]
   )
   const descriptionHtmlById = useMemo(() => {
     const lookup: Record<string, string> = {}
     questions.forEach((question) => {
       if (!question.description) return
-      lookup[question.id] = renderMarkdown(question.description)
+      lookup[question.id] = renderMarkdown(question.description, {
+        resolveWorkspaceFileLink,
+        isWorkspaceFileLink,
+      })
     })
     return lookup
-  }, [questions])
+  }, [questions, isWorkspaceFileLink, resolveWorkspaceFileLink])
   const defaultState = useMemo(() => {
     const rawDefaults = buildRawDefaultAnswers(parsedArgs, questions)
     return coerceAnswerState(rawDefaults, questions)
@@ -207,7 +222,12 @@ export function QuestionPrompt({
                 'font-medium text-[var(--text-primary)]',
                 isCompact ? 'text-[12px]' : 'text-[12px]'
               )}
-              dangerouslySetInnerHTML={{ __html: renderMarkdownInline(question.text) }}
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdownInline(question.text, {
+                  resolveWorkspaceFileLink,
+                  isWorkspaceFileLink,
+                }),
+              }}
             />
             {descriptionHtmlById[question.id] ? (
               <div
@@ -225,7 +245,12 @@ export function QuestionPrompt({
                       isCompact ? 'text-[11px]' : 'text-[11px]',
                       'whitespace-normal break-words'
                     )}
-                    dangerouslySetInnerHTML={{ __html: renderMarkdownInline(label) }}
+                    dangerouslySetInnerHTML={{
+                      __html: renderMarkdownInline(label, {
+                        resolveWorkspaceFileLink,
+                        isWorkspaceFileLink,
+                      }),
+                    }}
                   >
                   </span>
                 ))
@@ -249,6 +274,19 @@ export function QuestionPrompt({
   return (
     <div className="ai-manus-question-prompt w-full">
       <div
+        onClickCapture={(event) => {
+          if (!onFileLinkClick) return
+          const target = event.target as HTMLElement | null
+          const fileButton = target?.closest<HTMLElement>('[data-file-href]')
+          const buttonHref = fileButton?.getAttribute('data-file-href')?.trim() || ''
+          const anchor = target?.closest<HTMLAnchorElement>('a[href]')
+          const rawHref = buttonHref || anchor?.getAttribute('href')?.trim() || ''
+          if (!rawHref) return
+          const handled = onFileLinkClick(rawHref)
+          if (!handled) return
+          event.preventDefault()
+          event.stopPropagation()
+        }}
         className={cn(
           'ai-manus-question-prompt__card rounded-[22px] border border-[var(--border-light)] bg-[var(--background-white-main)]',
           isCompact ? 'px-4 py-4' : 'px-6 py-5'
@@ -306,7 +344,10 @@ export function QuestionPrompt({
                 isCompact ? 'text-[15px]' : 'text-[16px]'
               )}
               dangerouslySetInnerHTML={{
-                __html: renderMarkdownInline(currentQuestion?.text ?? ''),
+                __html: renderMarkdownInline(currentQuestion?.text ?? '', {
+                  resolveWorkspaceFileLink,
+                  isWorkspaceFileLink,
+                }),
               }}
             />
             {currentQuestion && descriptionHtmlById[currentQuestion.id] ? (
@@ -328,7 +369,7 @@ export function QuestionPrompt({
                       key={`${currentQuestion.id}-${option.value}`}
                       type="button"
                       onClick={(event) => {
-                        if ((event.target as HTMLElement | null)?.closest('a')) return
+                        if ((event.target as HTMLElement | null)?.closest('a,[data-file-href]')) return
                         toggleChoice(currentQuestion, optionIndex)
                       }}
                       disabled={!interactive}
@@ -345,7 +386,10 @@ export function QuestionPrompt({
                     >
                       <span
                         dangerouslySetInnerHTML={{
-                          __html: renderMarkdownInline(option.label),
+                          __html: renderMarkdownInline(option.label, {
+                            resolveWorkspaceFileLink,
+                            isWorkspaceFileLink,
+                          }),
                         }}
                       />
                     </button>

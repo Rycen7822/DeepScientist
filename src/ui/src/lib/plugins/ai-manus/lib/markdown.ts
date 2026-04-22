@@ -58,6 +58,7 @@ type CitationRenderState = {
 
 type MarkdownRenderOptions = {
   resolveWorkspaceFileLink?: (href: string) => boolean
+  isWorkspaceFileLink?: (href: string) => boolean
 }
 
 export function decodeHtmlEntities(text: string | null | undefined): string {
@@ -330,7 +331,7 @@ const createRenderer = (state: CitationRenderState | null, options?: MarkdownRen
   renderer.link = ({ href, title, text }: Tokens.Link) => {
     const safeHref = href ?? ''
     const titleAttr = title ? ` title="${title}"` : ''
-    if (options?.resolveWorkspaceFileLink?.(safeHref)) {
+    if (options?.resolveWorkspaceFileLink?.(safeHref) || options?.isWorkspaceFileLink?.(safeHref)) {
       return `<button type="button" class="ai-manus-inline-link" data-file-href="${escapeHtml(safeHref)}"${titleAttr}>${text}</button>`
     }
     return `<a href="${safeHref}" target="_blank" rel="noopener noreferrer"${titleAttr}>${text}</a>`

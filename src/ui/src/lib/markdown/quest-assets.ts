@@ -18,6 +18,16 @@ function decodePart(value: string) {
   }
 }
 
+function parseSharedMemoryDocumentId(documentId?: string | null): { questId: string; relative: string } | null {
+  const raw = String(documentId || '').trim()
+  if (!raw.startsWith('sharedmemory::')) return null
+  const [, questId = '', relative = ''] = raw.split('::', 3)
+  const normalizedQuestId = questId.trim()
+  const normalizedRelative = relative.replace(/^\/+/, '')
+  if (!normalizedQuestId || !normalizedRelative) return null
+  return { questId: normalizedQuestId, relative: normalizedRelative }
+}
+
 function basePathFromDocumentId(documentId?: string | null): { path: string; revision?: string | null } | null {
   const raw = String(documentId || '').trim()
   if (!raw) return null
@@ -37,6 +47,10 @@ function basePathFromDocumentId(documentId?: string | null): { path: string; rev
   if (raw.startsWith('memory::')) {
     const relative = raw.slice('memory::'.length).replace(/^\/+/, '')
     return relative ? { path: `memory/${relative}` } : null
+  }
+  const sharedMemory = parseSharedMemoryDocumentId(raw)
+  if (sharedMemory) {
+    return { path: `memory/${sharedMemory.relative}` }
   }
   if (raw.startsWith('skill::')) {
     return null
@@ -189,8 +203,11 @@ export function resolveQuestMarkdownAssetUrl(
     return trimmed
   }
   const resolvedPath = resolveRelativePosixPath(context.baseRelativePath, trimmed)
+  const sharedMemoryContext = parseSharedMemoryDocumentId(context.baseDocumentId)
   const targetDocumentId = context.baseRevision
     ? `git::${context.baseRevision}::${resolvedPath}`
+    : sharedMemoryContext
+      ? `sharedmemory::${sharedMemoryContext.questId}::${resolvedPath.replace(/^memory\/+/, '')}`
     : context.baseDocumentId.startsWith('questpath::')
       ? `questpath::${resolvedPath}`
       : `path::${resolvedPath}`

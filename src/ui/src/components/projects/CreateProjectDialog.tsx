@@ -27,6 +27,7 @@ import { client } from '@/lib/api'
 import { connectorInstanceMode, connectorTargetLabel, normalizeConnectorTargets, parseConversationId, recentConversationLabel } from '@/lib/connectors'
 import { useI18n } from '@/lib/i18n'
 import { normalizeZhUiCopy } from '@/lib/i18n/normalizeZhUiCopy'
+import type { QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
 import { useOnboardingStore } from '@/lib/stores/onboarding'
 import { resetDemoRuntime } from '@/demo/runtime'
 import { normalizeBuiltinRunnerName, runnerLabel } from '@/lib/runnerBranding'
@@ -1619,6 +1620,8 @@ export function CreateProjectDialog({
     message: string
     form: StartResearchTemplate
     setupPacket?: BenchSetupPacket | null
+    attachments?: QuestMessageAttachmentDraft[]
+    createOnly?: boolean
   }) => Promise<void>
   onCreate: (payload: {
     title: string
@@ -3151,11 +3154,12 @@ export function CreateProjectDialog({
                     assistantLabel={`${runnerLabel(activeRunnerName)} · SetupAgent`}
                     loading={setupQuestCreating}
                     error={error}
-                    onStartAssist={async (message) => {
+                    onStartAssist={async (message, attachments) => {
                       await onRequestSetupAgent?.({
                         message,
                         form,
                         setupPacket,
+                        attachments,
                       })
                     }}
                   />

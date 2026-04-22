@@ -220,6 +220,7 @@ function resolveQuestDocumentIdFromPath(
     raw.startsWith('path::') ||
     raw.startsWith('questpath::') ||
     raw.startsWith('memory::') ||
+    raw.startsWith('sharedmemory::') ||
     raw.startsWith('skill::') ||
     raw.startsWith('git::')
   ) {

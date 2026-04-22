@@ -99,6 +99,12 @@ const PAGE_COPY = {
     promptVisibleBody: 'Let prompts see the selected hardware boundary and current machine summary.',
     promptHidden: 'Hide hardware from prompt',
     promptHiddenBody: 'Keep the runtime policy locally enforced, but omit the hardware summary from prompts.',
+    memorySharing: 'Memory visibility',
+    memorySharingHint: 'Choose whether each quest reads only its own memory cards or can also read durable memory cards from other quests. Saving memory still remains quest-local.',
+    memoryModeIndependent: 'Independent memory',
+    memoryModeIndependentBody: 'Keep the current default behavior. Each quest reads only its own memory cards unless a tool explicitly asks for global memory.',
+    memoryModeShared: 'Shared across quests',
+    memoryModeSharedBody: 'Let quest memory pages and quest-scoped memory search also read memory cards from other quests. Cards from other quests stay read-only here.',
     host: 'Host',
     cpu: 'CPU',
     memory: 'Memory',
@@ -156,6 +162,12 @@ const PAGE_COPY = {
     promptVisibleBody: '让 prompt 能看到当前选择的硬件边界和机器摘要。',
     promptHidden: '对 prompt 隐藏硬件',
     promptHiddenBody: '仅在本地运行时层面执行硬件限制，但不把硬件摘要写进 prompt。',
+    memorySharing: '记忆可见性',
+    memorySharingHint: '选择每个 quest 只读取自己的记忆卡片，还是也能一起读取其他 quest 的记忆卡片。保存时仍然只写回当前 quest。',
+    memoryModeIndependent: '独立记忆',
+    memoryModeIndependentBody: '保持当前默认行为。每个 quest 只读取自己的记忆卡片；只有显式请求 global memory 时才会额外读取全局记忆。',
+    memoryModeShared: '跨 quest 共享',
+    memoryModeSharedBody: '让 quest 的 Memory 页面以及 quest 作用域的 memory 搜索，也能一起读取其他 quest 的记忆卡片。其他 quest 的卡片在这里保持只读。',
     host: '主机',
     cpu: 'CPU',
     memory: '内存',
@@ -226,6 +238,7 @@ export function SettingsRuntimeSection() {
   const [gpuModeDraft, setGpuModeDraft] = React.useState<'all' | 'selected'>('all')
   const [gpuDraft, setGpuDraft] = React.useState<string[]>([])
   const [includePromptDraft, setIncludePromptDraft] = React.useState(true)
+  const [memoryReadVisibilityDraft, setMemoryReadVisibilityDraft] = React.useState<'independent' | 'shared_across_quests'>('independent')
   const setContext = useAdminOpsStore((state) => state.setContext)
 
   const load = React.useCallback(async () => {
@@ -240,6 +253,11 @@ export function SettingsRuntimeSection() {
     setGpuModeDraft((String(preferences.gpu_selection_mode || 'all') === 'selected' ? 'selected' : 'all'))
     setGpuDraft(Array.isArray(preferences.selected_gpu_ids) ? preferences.selected_gpu_ids.map((item) => String(item)) : [])
     setIncludePromptDraft(Boolean(preferences.include_system_hardware_in_prompt ?? true))
+    setMemoryReadVisibilityDraft(
+      String(payload.memory_preferences?.read_visibility_mode || 'independent') === 'shared_across_quests'
+        ? 'shared_across_quests'
+        : 'independent'
+    )
   }, [])
 
   React.useEffect(() => {
@@ -286,12 +304,18 @@ export function SettingsRuntimeSection() {
         gpu_selection_mode: gpuModeDraft,
         selected_gpu_ids: gpuDraft,
         include_system_hardware_in_prompt: includePromptDraft,
+        memory_read_visibility_mode: memoryReadVisibilityDraft,
       })
       setHardware(payload)
       const preferences = payload.preferences || {}
       setGpuModeDraft((String(preferences.gpu_selection_mode || 'all') === 'selected' ? 'selected' : 'all'))
       setGpuDraft(Array.isArray(preferences.selected_gpu_ids) ? preferences.selected_gpu_ids.map((item) => String(item)) : [])
       setIncludePromptDraft(Boolean(preferences.include_system_hardware_in_prompt ?? true))
+      setMemoryReadVisibilityDraft(
+        String(payload.memory_preferences?.read_visibility_mode || 'independent') === 'shared_across_quests'
+          ? 'shared_across_quests'
+          : 'independent'
+      )
       addToast({ title: copy.hardwareSaved, variant: 'success' })
     } catch (caught) {
       addToast({
@@ -302,7 +326,7 @@ export function SettingsRuntimeSection() {
     } finally {
       setHardwareSaving(false)
     }
-  }, [addToast, copy.hardware, copy.hardwareSaved, gpuDraft, gpuModeDraft, includePromptDraft])
+  }, [addToast, copy.hardware, copy.hardwareSaved, gpuDraft, gpuModeDraft, includePromptDraft, memoryReadVisibilityDraft])
 
   return (
     <div className="space-y-5">
@@ -448,12 +472,32 @@ export function SettingsRuntimeSection() {
               </div>
             </div>
 
+            <div className={`mt-5 border-t ${dividerClassName} pt-5`}>
+              <div className="text-sm font-medium">{copy.memorySharing}</div>
+              <div className="mt-1 text-xs leading-6 text-soft-text-secondary">{copy.memorySharingHint}</div>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <ModeCard
+                  title={copy.memoryModeIndependent}
+                  body={copy.memoryModeIndependentBody}
+                  active={memoryReadVisibilityDraft === 'independent'}
+                  onClick={() => setMemoryReadVisibilityDraft('independent')}
+                />
+                <ModeCard
+                  title={copy.memoryModeShared}
+                  body={copy.memoryModeSharedBody}
+                  active={memoryReadVisibilityDraft === 'shared_across_quests'}
+                  onClick={() => setMemoryReadVisibilityDraft('shared_across_quests')}
+                />
+              </div>
+            </div>
+
             <div className="mt-4 flex flex-wrap gap-2">
               <Badge variant="secondary">mode: {isCpuOnly ? 'cpu-only' : gpuModeDraft}</Badge>
               <Badge variant="secondary">effective: {effectiveGpuIds.length > 0 ? effectiveGpuIds.join(',') : 'none'}</Badge>
               <Badge variant="secondary">
                 CUDA_VISIBLE_DEVICES: {String(hardware?.preferences?.cuda_visible_devices || (effectiveGpuIds.length > 0 ? effectiveGpuIds.join(',') : 'unset'))}
               </Badge>
+              <Badge variant="secondary">memory: {memoryReadVisibilityDraft === 'shared_across_quests' ? 'shared' : 'independent'}</Badge>
             </div>
           </div>
 

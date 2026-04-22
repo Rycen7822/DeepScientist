@@ -612,6 +612,7 @@ export interface QuestDocument {
 export interface OpenDocumentPayload {
   document_id: string
   quest_id?: string
+  source_quest_id?: string
   title: string
   path?: string
   content: string
@@ -729,6 +730,9 @@ export interface MemoryCard {
   path?: string
   updated_at?: string
   writable?: boolean
+  scope?: string
+  shared?: boolean
+  source_quest_id?: string
 }
 
 export interface GraphPayload {

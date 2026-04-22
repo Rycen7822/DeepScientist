@@ -55,21 +55,31 @@ export function useQuestMessageAttachments(questId?: string | null) {
   const [attachments, setAttachments] = React.useState<QuestMessageAttachmentDraft[]>([])
   const canceledDraftsRef = React.useRef<Set<string>>(new Set())
   const attachmentsRef = React.useRef<QuestMessageAttachmentDraft[]>([])
+  const previousQuestIdRef = React.useRef<string | null>(questId ? String(questId) : null)
 
   React.useEffect(() => {
     attachmentsRef.current = attachments
   }, [attachments])
 
   React.useEffect(() => {
-    setAttachments((current) => {
-      current.forEach((item) => {
-        if (item.previewUrl?.startsWith('blob:')) {
-          URL.revokeObjectURL(item.previewUrl)
-        }
+    const previousQuestId = previousQuestIdRef.current
+    const nextQuestId = questId ? String(questId) : null
+    const shouldReset =
+      Boolean(previousQuestId) &&
+      previousQuestId !== nextQuestId
+
+    if (shouldReset) {
+      setAttachments((current) => {
+        current.forEach((item) => {
+          if (item.previewUrl?.startsWith('blob:')) {
+            URL.revokeObjectURL(item.previewUrl)
+          }
+        })
+        return []
       })
-      return []
-    })
-    canceledDraftsRef.current = new Set()
+      canceledDraftsRef.current = new Set()
+    }
+    previousQuestIdRef.current = nextQuestId
   }, [questId])
 
   React.useEffect(() => {
@@ -85,13 +95,6 @@ export function useQuestMessageAttachments(questId?: string | null) {
   const uploadDraft = React.useCallback(
     async (draft: QuestMessageAttachmentDraft) => {
       if (!questId || !draft.file) {
-        setAttachments((current) =>
-          current.map((item) =>
-            item.draftId === draft.draftId
-              ? { ...item, status: 'failed', error: 'No active quest.' }
-              : item
-          )
-        )
         return
       }
 
@@ -172,14 +175,6 @@ export function useQuestMessageAttachments(questId?: string | null) {
 
   const queueFiles = React.useCallback(
     (files: File[]) => {
-      if (!questId) {
-        addToast({
-          type: 'error',
-          title: 'Upload failed',
-          description: 'Open a quest before uploading attachments.',
-        })
-        return
-      }
       if (!files.length) return
 
       const availableSlots = Math.max(0, MAX_ATTACHMENTS - attachments.length)
@@ -217,12 +212,17 @@ export function useQuestMessageAttachments(questId?: string | null) {
       }
       if (!drafts.length) return
       setAttachments((current) => [...current, ...drafts])
-      drafts.forEach((draft) => {
-        void uploadDraft(draft)
-      })
     },
-    [addToast, attachments.length, questId, uploadDraft]
+    [addToast, attachments.length]
   )
+
+  React.useEffect(() => {
+    if (!questId) return
+    for (const draft of attachments) {
+      if (draft.status !== 'queued' || !draft.file) continue
+      void uploadDraft(draft)
+    }
+  }, [attachments, questId, uploadDraft])
 
   const removeAttachment = React.useCallback(
     async (draftId: string) => {

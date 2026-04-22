@@ -6,6 +6,7 @@ import { ArrowUp, FileText, Image as ImageIcon, Loader2, Paperclip, Slash, Squar
 import OrbitLogoStatus from '@/lib/plugins/ai-manus/components/OrbitLogoStatus'
 import { cn } from '@/lib/utils'
 import type { QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
+import { AttachmentPreviewModal, type AttachmentPreviewItem } from './AttachmentPreviewModal'
 
 type ComposerCommand = {
   name: string
@@ -82,7 +83,11 @@ export function QuestCopilotComposer({
   const shellRef = React.useRef<HTMLDivElement | null>(null)
   const actionsRef = React.useRef<HTMLDivElement | null>(null)
   const fileInputRef = React.useRef<HTMLInputElement | null>(null)
+  const dragDepthRef = React.useRef(0)
   const [activeCommandIndex, setActiveCommandIndex] = React.useState(0)
+  const [isDragActive, setIsDragActive] = React.useState(false)
+  const [previewOpen, setPreviewOpen] = React.useState(false)
+  const [previewIndex, setPreviewIndex] = React.useState(0)
   const [layoutMetrics, setLayoutMetrics] = React.useState({
     shellWidth: 0,
     actionsWidth: 0,
@@ -265,10 +270,53 @@ export function QuestCopilotComposer({
       const files = Array.from(event.dataTransfer.files ?? [])
       if (!files.length) return
       event.preventDefault()
+      dragDepthRef.current = 0
+      setIsDragActive(false)
       onQueueFiles(files)
     },
     [onQueueFiles]
   )
+
+  const handleDragEnter = React.useCallback(
+    (event: React.DragEvent<HTMLDivElement>) => {
+      if (!onQueueFiles || !(event.dataTransfer.types || []).includes('Files')) return
+      event.preventDefault()
+      dragDepthRef.current += 1
+      setIsDragActive(true)
+    },
+    [onQueueFiles]
+  )
+
+  const handleDragLeave = React.useCallback(() => {
+    if (!onQueueFiles) return
+    dragDepthRef.current = Math.max(0, dragDepthRef.current - 1)
+    if (dragDepthRef.current === 0) {
+      setIsDragActive(false)
+    }
+  }, [onQueueFiles])
+
+  const previewItems = React.useMemo<AttachmentPreviewItem[]>(
+    () =>
+      attachments.map((attachment) => ({
+        id: attachment.draftId,
+        name: attachment.name,
+        contentType: attachment.contentType,
+        sizeBytes: attachment.sizeBytes,
+        status: attachment.status,
+        previewUrl: attachment.previewUrl,
+        assetUrl: attachment.assetUrl,
+        questRelativePath: attachment.questRelativePath,
+        path: attachment.path,
+        extractedTextPath: attachment.extractedTextPath,
+        kind: attachment.kind,
+        error: attachment.error,
+        file: attachment.file,
+      })),
+    [attachments]
+  )
+
+  const visibleAttachments = attachments.slice(0, 2)
+  const hiddenAttachmentCount = Math.max(0, attachments.length - visibleAttachments.length)
 
   const handlePaste = React.useCallback(
     (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -327,13 +375,29 @@ export function QuestCopilotComposer({
 
       <div
         ref={shellRef}
-        className="relative overflow-hidden rounded-[18px] border border-black/[0.08] bg-[rgba(252,250,246,0.94)] shadow-[0_14px_34px_-30px_rgba(24,28,32,0.22)] dark:border-white/[0.10] dark:bg-[rgba(28,31,36,0.9)]"
+        className={cn(
+          'relative overflow-hidden rounded-[18px] border border-black/[0.08] bg-[rgba(252,250,246,0.94)] shadow-[0_14px_34px_-30px_rgba(24,28,32,0.22)] transition-[border-color,box-shadow,transform,background-color] duration-200 dark:border-white/[0.10] dark:bg-[rgba(28,31,36,0.9)]',
+          isDragActive &&
+            'border-[#9b8352]/70 bg-[rgba(252,248,240,0.98)] shadow-[0_22px_48px_-28px_rgba(155,131,82,0.35)] ring-1 ring-[#d7c6ae]/70 dark:border-[#d7c6ae]/50 dark:bg-[rgba(44,40,34,0.96)] dark:ring-[#d7c6ae]/30'
+        )}
+        onDragEnter={handleDragEnter}
         onDragOver={(event) => {
           if (!onQueueFiles) return
           event.preventDefault()
+          event.dataTransfer.dropEffect = 'copy'
+          setIsDragActive(true)
         }}
+        onDragLeave={handleDragLeave}
         onDrop={handleDrop}
       >
+        {isDragActive ? (
+          <div className="pointer-events-none absolute inset-0 z-[12] flex items-center justify-center bg-[rgba(245,236,219,0.78)] backdrop-blur-[2px] dark:bg-[rgba(28,24,20,0.72)]">
+            <div className="inline-flex items-center gap-2 rounded-full border border-[#b8935f]/40 bg-white/85 px-4 py-2 text-xs font-medium text-[#5f4d2e] shadow-[0_18px_42px_-24px_rgba(155,131,82,0.45)] dark:border-[#d7c6ae]/30 dark:bg-[rgba(39,34,28,0.88)] dark:text-[#f0e6d8]">
+              <Paperclip className="h-4 w-4" />
+              Drop files to attach
+            </div>
+          </div>
+        ) : null}
         <input
           ref={fileInputRef}
           type="file"
@@ -345,7 +409,7 @@ export function QuestCopilotComposer({
           <div className="px-3.5 pt-3 pb-1">
             <div className="flex justify-end">
               <div className="flex max-w-full gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              {attachments.map((attachment) => {
+              {visibleAttachments.map((attachment, index) => {
                 const isImage = String(attachment.contentType || '').startsWith('image/')
                 const previewUrl = attachment.previewUrl || attachment.assetUrl || undefined
                 const statusText =
@@ -371,6 +435,10 @@ export function QuestCopilotComposer({
                       'border-black/[0.06] bg-black/[0.03] dark:border-white/[0.08] dark:bg-white/[0.05]',
                       attachment.status === 'failed' && 'border-rose-300/70 bg-rose-50/70 dark:border-rose-400/40 dark:bg-rose-500/10'
                     )}
+                    onClick={() => {
+                      setPreviewIndex(index)
+                      setPreviewOpen(true)
+                    }}
                   >
                     <div className="shrink-0">
                       {isImage && previewUrl ? (
@@ -416,13 +484,28 @@ export function QuestCopilotComposer({
                     <button
                       type="button"
                       className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full p-1 text-muted-foreground transition hover:bg-black/[0.05] hover:text-foreground dark:hover:bg-white/[0.08]"
-                      onClick={() => onRemoveAttachment?.(attachment.draftId)}
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onRemoveAttachment?.(attachment.draftId)
+                      }}
                     >
                       <X className="h-3 w-3" />
                     </button>
                   </div>
                 )
               })}
+              {hiddenAttachmentCount > 0 ? (
+                <button
+                  type="button"
+                  className="inline-flex h-11 shrink-0 items-center rounded-full border border-black/[0.08] bg-white/78 px-3 text-[12px] font-medium text-foreground transition hover:bg-black/[0.03] dark:border-white/[0.10] dark:bg-white/[0.06] dark:hover:bg-white/[0.08]"
+                  onClick={() => {
+                    setPreviewIndex(visibleAttachments.length)
+                    setPreviewOpen(true)
+                  }}
+                >
+                  +{hiddenAttachmentCount} more
+                </button>
+              ) : null}
               </div>
             </div>
           </div>
@@ -501,6 +584,12 @@ export function QuestCopilotComposer({
           </div>
         </div>
       </div>
+      <AttachmentPreviewModal
+        open={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        items={previewItems}
+        initialIndex={previewIndex}
+      />
     </div>
   )
 }

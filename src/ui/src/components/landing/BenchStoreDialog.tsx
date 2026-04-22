@@ -16,6 +16,7 @@ import {
   installBenchStoreEntry,
   listBenchStoreEntries,
 } from "@/lib/api/benchstore";
+import type { QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
 import { useAdminTaskStream } from "@/lib/hooks/useAdminTaskStream";
 import type {
   BenchCatalogPayload,
@@ -41,6 +42,8 @@ type BenchStoreDialogProps = {
     message: string;
     entry?: BenchEntry | null;
     setupPacket?: BenchSetupPacket | null;
+    attachments?: QuestMessageAttachmentDraft[];
+    createOnly?: boolean;
   }) => void | Promise<void>;
 };
 
@@ -3530,7 +3533,7 @@ export function BenchStoreDialog({
               loading={setupQuestCreating}
               error={null}
               assistantLabel={`${runnerLabel(activeRunnerName)} · SetupAgent`}
-              onStartAssist={async (message) => {
+              onStartAssist={async (message, attachments) => {
                 let setupPacket: BenchSetupPacket | null = null;
                 if (
                   activeEntry?.id &&
@@ -3550,6 +3553,7 @@ export function BenchStoreDialog({
                   message,
                   entry: activeEntry,
                   setupPacket,
+                  attachments,
                 });
               }}
             />

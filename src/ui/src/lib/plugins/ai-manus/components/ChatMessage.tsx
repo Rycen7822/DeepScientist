@@ -24,7 +24,10 @@ import {
   renderMarkdownWithCitations,
   type CitationLookup,
 } from '../lib/markdown'
-import { resolveStudioFileLinkTarget } from '@/components/workspace/studio-file-links'
+import {
+  isLikelyWorkspaceFileReference,
+  resolveStudioFileLinkTarget,
+} from '@/components/workspace/studio-file-links'
 import { formatRelativeTime } from '../lib/time'
 import { getToolInfo } from '../lib/tool-map'
 import { getMcpToolKind } from '../lib/mcp-tools'
@@ -584,17 +587,35 @@ function ChatMessageBase({
       ),
     [projectId]
   )
+  const workspaceLinkMatcher = useCallback(
+    (href: string) =>
+      Boolean(
+        projectId &&
+          isLikelyWorkspaceFileReference(href, {
+            currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+            questId: projectId,
+          })
+      ),
+    [projectId]
+  )
   const userHtml = useMemo(
-    () => (isUserMessage ? renderMarkdown(fullContent, { resolveWorkspaceFileLink: workspaceLinkResolver }) : ''),
-    [fullContent, isUserMessage, workspaceLinkResolver]
+    () =>
+      isUserMessage
+        ? renderMarkdown(fullContent, {
+            resolveWorkspaceFileLink: workspaceLinkResolver,
+            isWorkspaceFileLink: workspaceLinkMatcher,
+          })
+        : '',
+    [fullContent, isUserMessage, workspaceLinkMatcher, workspaceLinkResolver]
   )
   const assistantRendered = useMemo(() => {
     if (!isAssistantTextDelta) return { html: '', citationLookup: {} as CitationLookup }
     const resolved = streamedContent !== null ? streamedContent : fullContent
     return renderMarkdownWithCitations(resolved, messageContent.metadata?.citations, {
       resolveWorkspaceFileLink: workspaceLinkResolver,
+      isWorkspaceFileLink: workspaceLinkMatcher,
     })
-  }, [fullContent, isAssistantTextDelta, messageContent.metadata?.citations, streamedContent, workspaceLinkResolver])
+  }, [fullContent, isAssistantTextDelta, messageContent.metadata?.citations, streamedContent, workspaceLinkMatcher, workspaceLinkResolver])
   const assistantHtml = assistantRendered.html
   const citationLookupRef = useRef<CitationLookup>({})
   useEffect(() => {
@@ -602,14 +623,18 @@ function ChatMessageBase({
   }, [assistantRendered.citationLookup])
   const reasoningHtml = useMemo(() => {
     if (message.type !== 'reasoning') return ''
-    return renderMarkdown(reasoningBody, { resolveWorkspaceFileLink: workspaceLinkResolver })
-  }, [message.type, reasoningBody, workspaceLinkResolver])
+    return renderMarkdown(reasoningBody, {
+      resolveWorkspaceFileLink: workspaceLinkResolver,
+      isWorkspaceFileLink: workspaceLinkMatcher,
+    })
+  }, [message.type, reasoningBody, workspaceLinkMatcher, workspaceLinkResolver])
   const stepDescriptionHtml = useMemo(() => {
     if (message.type !== 'step') return ''
     return renderMarkdown(stepContent.description || '', {
       resolveWorkspaceFileLink: workspaceLinkResolver,
+      isWorkspaceFileLink: workspaceLinkMatcher,
     })
-  }, [message.type, stepContent.description, workspaceLinkResolver])
+  }, [message.type, stepContent.description, workspaceLinkMatcher, workspaceLinkResolver])
   const toolContentKey = useMemo(() => {
     if (!isToolMessage) return ''
     const args =
@@ -664,6 +689,14 @@ function ChatMessageBase({
     },
     [handleCitationClick, handleMarkdownAction, handleWorkspaceLinkClick]
   )
+
+  const handleWorkspaceLinkContextMenu = useCallback((event: React.MouseEvent<HTMLElement>) => {
+    const target = event.target as HTMLElement | null
+    if (!target) return
+    if (!target.closest('[data-file-href]')) return
+    event.preventDefault()
+    event.stopPropagation()
+  }, [])
 
   useEffect(() => {
     if (!shouldStream || !onDisplayComplete || displayCompleteRef.current) return
@@ -798,6 +831,7 @@ function ChatMessageBase({
             )}
             onClick={handleMarkdownAction}
             onClickCapture={handleAssistantClick}
+            onContextMenuCapture={handleWorkspaceLinkContextMenu}
             dangerouslySetInnerHTML={{ __html: userHtml }}
           />
         </div>
@@ -820,6 +854,7 @@ function ChatMessageBase({
               : 'prose-sm text-[12px] [&_p]:text-[12px] [&_li]:text-[12px]'
           )}
           onClick={handleAssistantClick}
+          onContextMenuCapture={handleWorkspaceLinkContextMenu}
           dangerouslySetInnerHTML={{
             __html: assistantHtml,
           }}
@@ -975,6 +1010,7 @@ function ChatMessageBase({
             )}
             onClick={handleMarkdownAction}
             onClickCapture={handleAssistantClick}
+            onContextMenuCapture={handleWorkspaceLinkContextMenu}
             dangerouslySetInnerHTML={{
               __html: reasoningHtml,
             }}
@@ -1007,6 +1043,7 @@ function ChatMessageBase({
             <div
               className="truncate font-medium"
               onClick={handleAssistantClick}
+              onContextMenuCapture={handleWorkspaceLinkContextMenu}
               dangerouslySetInnerHTML={{ __html: stepDescriptionHtml }}
             />
             <ChevronDown
@@ -1073,6 +1110,9 @@ function ChatMessageBase({
           answers={questionPromptContent.answers}
           error={questionPromptContent.error}
           compact={isCompact}
+          resolveWorkspaceFileLink={workspaceLinkResolver}
+          isWorkspaceFileLink={workspaceLinkMatcher}
+          onFileLinkClick={onFileLinkClick}
           onSubmit={
             onQuestionPromptSubmit
               ? (answers) => onQuestionPromptSubmit(questionPromptContent.toolCallId, answers)
@@ -1097,6 +1137,9 @@ function ChatMessageBase({
           missingFields={clarifyQuestionContent.missingFields}
           error={clarifyQuestionContent.error}
           compact={isCompact}
+          resolveWorkspaceFileLink={workspaceLinkResolver}
+          isWorkspaceFileLink={workspaceLinkMatcher}
+          onFileLinkClick={onFileLinkClick}
           onSubmit={
             onClarifyQuestionSubmit
               ? (selections) => onClarifyQuestionSubmit(clarifyQuestionContent.toolCallId, selections)

@@ -3119,7 +3119,7 @@ function mapMemoryCardToEntry(card: MemoryCard): LabMemoryEntry {
 }
 
 async function resolveLocalMemoryEntry(projectId: string, entryId: string): Promise<LabMemoryEntry> {
-  const documentId = entryId.startsWith('memory::') ? entryId : null
+  const documentId = entryId.startsWith('memory::') || entryId.startsWith('sharedmemory::') ? entryId : null
   if (!documentId) {
     const cards = await questClient.memory(projectId)
     const matched = cards.find((card) => (card.document_id || card.path || card.title) === entryId)

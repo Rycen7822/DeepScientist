@@ -4,6 +4,7 @@ import * as React from 'react'
 import { FileText, Image as ImageIcon } from 'lucide-react'
 
 import { cn } from '@/lib/utils'
+import { AttachmentPreviewModal, type AttachmentPreviewItem } from './AttachmentPreviewModal'
 
 type QuestMessageAttachmentsProps = {
   attachments?: Array<Record<string, unknown>> | null
@@ -44,25 +45,54 @@ export function QuestMessageAttachments({
   attachments,
   className,
 }: QuestMessageAttachmentsProps) {
+  const [previewOpen, setPreviewOpen] = React.useState(false)
+  const [previewIndex, setPreviewIndex] = React.useState(0)
   const normalized = Array.isArray(attachments)
     ? attachments.filter(
         (item): item is Record<string, unknown> =>
           Boolean(item) && typeof item === 'object' && !Array.isArray(item)
       )
     : []
+  const visibleItems = normalized.slice(0, 2)
+  const hiddenCount = Math.max(0, normalized.length - visibleItems.length)
+  const previewItems = React.useMemo<AttachmentPreviewItem[]>(
+    () =>
+      normalized.map((item, index) => ({
+        id: `${attachmentName(item, index)}-${index}`,
+        name: attachmentName(item, index),
+        contentType: String(item.content_type || item.mime_type || '').trim() || null,
+        sizeBytes: typeof item.size_bytes === 'number' ? item.size_bytes : typeof item.size === 'number' ? item.size : null,
+        status: String(item.status || '').trim() || null,
+        previewUrl: attachmentPreviewUrl(item),
+        assetUrl: String(item.asset_url || item.file_url || '').trim() || null,
+        questRelativePath: String(item.quest_relative_path || '').trim() || null,
+        path: String(item.path || '').trim() || null,
+        extractedTextPath: String(item.extracted_text_path || '').trim() || null,
+        kind: String(item.kind || '').trim() || null,
+        error: String(item.error || item.download_error || '').trim() || null,
+      })),
+    [normalized]
+  )
 
   if (!normalized.length) return null
 
   return (
+    <>
     <div className={cn('mt-2 flex flex-wrap gap-2', className)}>
-      {normalized.map((item, index) => {
+      {visibleItems.map((item, index) => {
         const name = attachmentName(item, index)
         const subtitle = attachmentSubtitle(item)
         const previewUrl = attachmentPreviewUrl(item)
         const isImage = isImageAttachment(item)
-        const linkHref = String(item.asset_url || previewUrl || '').trim() || undefined
         const body = (
-          <div className="group flex h-11 min-w-0 max-w-[220px] items-center gap-2.5 overflow-hidden rounded-full border border-black/[0.06] bg-black/[0.03] px-2.5 py-1.5 text-left transition hover:bg-black/[0.045] dark:border-white/[0.08] dark:bg-white/[0.04] dark:hover:bg-white/[0.06]">
+          <button
+            type="button"
+            onClick={() => {
+              setPreviewIndex(index)
+              setPreviewOpen(true)
+            }}
+            className="group flex h-11 min-w-0 max-w-[220px] items-center gap-2.5 overflow-hidden rounded-full border border-black/[0.06] bg-black/[0.03] px-2.5 py-1.5 text-left transition hover:bg-black/[0.045] dark:border-white/[0.08] dark:bg-white/[0.04] dark:hover:bg-white/[0.06]"
+          >
             <div className="shrink-0">
               {isImage && previewUrl ? (
                 <img
@@ -82,25 +112,30 @@ export function QuestMessageAttachments({
                 {isImage ? 'Image' : subtitle}
               </div>
             </div>
-          </div>
+          </button>
         )
-
-        if (!linkHref) {
-          return <div key={`${name}-${index}`}>{body}</div>
-        }
-        return (
-          <a
-            key={`${name}-${index}`}
-            href={linkHref}
-            target="_blank"
-            rel="noreferrer"
-            className="outline-none transition hover:opacity-95 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-          >
-            {body}
-          </a>
-        )
+        return <div key={`${name}-${index}`}>{body}</div>
       })}
+      {hiddenCount > 0 ? (
+        <button
+          type="button"
+          className="inline-flex h-11 items-center rounded-full border border-black/[0.08] bg-white/78 px-3 text-[12px] font-medium text-foreground transition hover:bg-black/[0.03] dark:border-white/[0.10] dark:bg-white/[0.06] dark:hover:bg-white/[0.08]"
+          onClick={() => {
+            setPreviewIndex(visibleItems.length)
+            setPreviewOpen(true)
+          }}
+        >
+          +{hiddenCount} more
+        </button>
+      ) : null}
     </div>
+    <AttachmentPreviewModal
+      open={previewOpen}
+      onClose={() => setPreviewOpen(false)}
+      items={previewItems}
+      initialIndex={previewIndex}
+    />
+    </>
   )
 }
 

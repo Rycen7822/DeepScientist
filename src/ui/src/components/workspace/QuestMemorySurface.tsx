@@ -5,6 +5,7 @@ import { BookOpen, ExternalLink, FileText, RefreshCw } from 'lucide-react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 
+import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { client } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -58,6 +59,18 @@ function summarizeMemory(item: MemoryCard) {
   const raw = String(item.excerpt || item.path || '').trim()
   if (!raw) return 'No summary yet.'
   return raw.length <= 180 ? raw : `${raw.slice(0, 177).trimEnd()}...`
+}
+
+function isSharedMemory(item: MemoryCard, activeQuestId: string) {
+  const sourceQuestId = String(item.source_quest_id || '').trim()
+  return Boolean(item.shared || (sourceQuestId && sourceQuestId !== activeQuestId))
+}
+
+function sourceQuestLabel(item: MemoryCard, activeQuestId: string) {
+  const sourceQuestId = String(item.source_quest_id || '').trim()
+  if (!sourceQuestId) return null
+  if (sourceQuestId === activeQuestId) return `Local · ${sourceQuestId}`
+  return `Shared from ${sourceQuestId}`
 }
 
 export function QuestMemorySurface({
@@ -229,8 +242,13 @@ export function QuestMemorySurface({
                               <div className="text-sm font-medium leading-6 text-foreground [overflow-wrap:anywhere]">
                                 {item.title || item.path || 'Memory'}
                               </div>
-                              <div className="mt-1 text-xs uppercase tracking-[0.12em] text-muted-foreground">
-                                {item.type || classifyMemoryCategory(item)}
+                              <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                <span className="uppercase tracking-[0.12em]">
+                                  {item.type || classifyMemoryCategory(item)}
+                                </span>
+                                {sourceQuestLabel(item, questId) ? (
+                                  <span>{sourceQuestLabel(item, questId)}</span>
+                                ) : null}
                               </div>
                             </div>
                             <div className="shrink-0 text-[11px] text-muted-foreground">
@@ -260,6 +278,14 @@ export function QuestMemorySurface({
                 </h3>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
                   <span>{selectedEntry?.type || 'memory'}</span>
+                  {selectedEntry ? (
+                    <span>{sourceQuestLabel(selectedEntry, questId) || 'Local memory'}</span>
+                  ) : null}
+                  {selectedEntry && isSharedMemory(selectedEntry, questId) ? (
+                    <Badge variant="secondary" className="rounded-full">
+                      Read-only shared card
+                    </Badge>
+                  ) : null}
                   {selectedEntry?.updated_at ? <span>{formatRelativeTime(selectedEntry.updated_at)}</span> : null}
                   {selectedEntry?.path ? <span className="break-all">{selectedEntry.path}</span> : null}
                 </div>

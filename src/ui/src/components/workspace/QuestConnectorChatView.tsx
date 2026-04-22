@@ -1,17 +1,20 @@
 'use client'
 
 import * as React from 'react'
+import type { Components } from 'react-markdown'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Check, CheckCheck, Loader2, TriangleAlert } from 'lucide-react'
 
 import { useToast } from '@/components/ui/toast'
+import { useOpenFile } from '@/hooks/useOpenFile'
 import { useI18n } from '@/lib/i18n/useI18n'
 import { useQuestMessageAttachments, type QuestMessageAttachmentDraft } from '@/lib/hooks/useQuestMessageAttachments'
 import type { CopilotPrefill } from '@/lib/plugins/ai-manus/view-types'
 import { useTokenStream } from '@/lib/plugins/ai-manus/hooks/useTokenStream'
 import { ChatScrollProvider } from '@/lib/plugins/ai-manus/lib/chat-scroll-context'
 import { buildQuestTranscriptMessages, type QuestTranscriptMessage } from '@/lib/questTranscript'
+import { useFileTreeStore } from '@/lib/stores/file-tree'
 import { useAutoFollowScroll } from '@/lib/useAutoFollowScroll'
 import { cn } from '@/lib/utils'
 import type { FeedItem } from '@/types'
@@ -19,6 +22,12 @@ import { QuestCopilotComposer } from './QuestCopilotComposer'
 import { QuestMessageAttachments } from './QuestMessageAttachments'
 import { QuestCopilotPaneLayout } from './QuestCopilotPaneLayout'
 import { QuestUserReadStateMeta } from './QuestUserReadStateMeta'
+import {
+  getWorkspaceFileReferenceLabel,
+  isLikelyWorkspaceFileReference,
+  resolveStudioFileLinkTarget,
+} from './studio-file-links'
+import { openWorkspaceFileReference } from './open-workspace-file-reference'
 
 type ConnectorCommand = {
   name: string
@@ -96,12 +105,14 @@ function MessageBubble({
   busyAction,
   onReadNow,
   onWithdraw,
+  markdownComponents,
 }: {
   item: QuestTranscriptMessage
   animateText: boolean
   busyAction: 'read_now' | 'withdraw' | null
   onReadNow?: ((messageId: string) => void | Promise<void>) | null
   onWithdraw?: ((messageId: string) => void | Promise<void>) | null
+  markdownComponents?: Components
 }) {
   const isUser = item.role === 'user'
   const isAssistant = item.role === 'assistant'
@@ -141,7 +152,9 @@ function MessageBubble({
             isUser ? 'prose-invert text-white' : 'text-foreground dark:prose-invert'
           )}
         >
-          <ReactMarkdown remarkPlugins={[remarkGfm]}>{item.content}</ReactMarkdown>
+          <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+            {item.content}
+          </ReactMarkdown>
         </div>
         <QuestMessageAttachments
           attachments={item.attachments}
@@ -202,6 +215,10 @@ export function QuestConnectorChatView({
 }: QuestConnectorChatViewProps) {
   const { t } = useI18n('workspace')
   const { addToast } = useToast()
+  const { openFileInTab } = useOpenFile()
+  const findNode = useFileTreeStore((state) => state.findNode)
+  const findNodeByPath = useFileTreeStore((state) => state.findNodeByPath)
+  const refreshTree = useFileTreeStore((state) => state.refresh)
   const [input, setInput] = React.useState('')
   const [submitting, setSubmitting] = React.useState(false)
   const [messageAction, setMessageAction] = React.useState<{
@@ -231,6 +248,105 @@ export function QuestConnectorChatView({
     scrollHeight: 0,
     scrollTop: 0,
   })
+
+  const handleOpenLinkedFile = React.useCallback(
+    async (href: string) => {
+      return openWorkspaceFileReference({
+        href,
+        projectId: questId,
+        currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+        findNode,
+        findNodeByPath,
+        refreshTree,
+        openFileInTab,
+        onMissing: (detail) => {
+          addToast({
+            title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
+            message:
+              detail.kind === 'file_id'
+                ? t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.')
+                : detail.value,
+            variant: 'error',
+          })
+        },
+        onOpenFailed: ({ error }) => {
+          addToast({
+            title: t('copilot_trace_open_file_failed', undefined, 'Unable to open file'),
+            message:
+              error || t('copilot_trace_file_missing', undefined, 'The linked file is not available in Explorer yet.'),
+            variant: 'error',
+          })
+        },
+      })
+    },
+    [addToast, findNode, findNodeByPath, openFileInTab, questId, refreshTree, t]
+  )
+
+  const markdownComponents = React.useMemo<Components>(
+    () => ({
+      a: ({ href, children, className, title, ...props }) => {
+        const rawHref = typeof href === 'string' ? href : ''
+        const fileTarget = rawHref
+          ? resolveStudioFileLinkTarget(rawHref, {
+              currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+              questId,
+            })
+          : null
+        const shouldOpenInNewTab = !fileTarget && /^(https?:)?\/\//i.test(rawHref)
+
+        const likelyFileRef = rawHref
+          ? isLikelyWorkspaceFileReference(rawHref, {
+              currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+              questId,
+            })
+          : false
+        const fileLabel = rawHref
+          ? getWorkspaceFileReferenceLabel(rawHref, {
+              currentOrigin: typeof window !== 'undefined' ? window.location.origin : null,
+              questId,
+            })
+          : null
+
+        if (fileTarget || likelyFileRef) {
+          return (
+            <button
+              type="button"
+              title={title || fileLabel || undefined}
+              data-studio-file-link="true"
+              className={cn(
+                'inline cursor-pointer border-0 bg-transparent p-0 text-left align-baseline font-inherit text-[inherit] underline decoration-current underline-offset-[0.18em] transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-current/40 focus-visible:ring-offset-1',
+                className
+              )}
+              onClick={(event) => {
+                event.preventDefault()
+                event.stopPropagation()
+                void handleOpenLinkedFile(rawHref)
+              }}
+              onContextMenu={(event) => {
+                event.preventDefault()
+              }}
+            >
+              {children}
+            </button>
+          )
+        }
+
+        return (
+          <a
+            {...props}
+            className={className}
+            href={rawHref || undefined}
+            title={title}
+            target={shouldOpenInNewTab ? '_blank' : undefined}
+            rel={shouldOpenInNewTab ? 'noopener noreferrer' : undefined}
+          >
+            {children}
+          </a>
+        )
+      },
+    }),
+    [handleOpenLinkedFile, questId]
+  )
 
   const handleSubmit = React.useCallback(async () => {
     const trimmed = input.trim()
@@ -469,6 +585,7 @@ export function QuestConnectorChatView({
                   }
                   onReadNow={handleReadNow}
                   onWithdraw={handleWithdraw}
+                  markdownComponents={markdownComponents}
                 />
               ))}
 

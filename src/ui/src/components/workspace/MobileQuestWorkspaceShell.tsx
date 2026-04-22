@@ -120,6 +120,11 @@ function resolveDocumentRelativePath(
   if (documentId.startsWith('memory::')) {
     return `memory/${documentId.slice('memory::'.length)}`
   }
+  if (documentId.startsWith('sharedmemory::')) {
+    const [, sourceQuestId = '', relative = ''] = documentId.split('::', 3)
+    const normalizedRelative = relative.replace(/^\/+/, '')
+    return normalizedRelative ? `${sourceQuestId || 'shared'}/memory/${normalizedRelative}` : document.title || documentId
+  }
   if (documentId.startsWith('path::')) {
     return documentId.slice('path::'.length)
   }

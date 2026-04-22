@@ -101,6 +101,7 @@ export async function saveAdminSystemHardware(payload: {
   gpu_selection_mode?: string
   selected_gpu_ids?: string[]
   include_system_hardware_in_prompt?: boolean
+  memory_read_visibility_mode?: string
 }) {
   const response = await apiClient.post<AdminSystemHardwarePayload>(`${SYSTEM_BASE}/hardware`, payload)
   return response.data

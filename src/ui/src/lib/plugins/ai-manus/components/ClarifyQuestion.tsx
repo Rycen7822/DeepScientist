@@ -33,6 +33,9 @@ export function ClarifyQuestion({
   missingFields,
   error,
   compact,
+  resolveWorkspaceFileLink,
+  isWorkspaceFileLink,
+  onFileLinkClick,
   onSubmit,
 }: {
   question: string
@@ -44,6 +47,9 @@ export function ClarifyQuestion({
   missingFields?: string[]
   error?: string
   compact?: boolean
+  resolveWorkspaceFileLink?: (href: string) => boolean
+  isWorkspaceFileLink?: (href: string) => boolean
+  onFileLinkClick?: (href: string) => boolean
   onSubmit?: (selections: string[]) => Promise<void>
 }) {
   const isCompact = Boolean(compact)
@@ -95,6 +101,19 @@ export function ClarifyQuestion({
   return (
     <div className="ai-manus-question-prompt ai-manus-clarify-question w-full">
       <div
+        onClickCapture={(event) => {
+          if (!onFileLinkClick) return
+          const target = event.target as HTMLElement | null
+          const fileButton = target?.closest<HTMLElement>('[data-file-href]')
+          const buttonHref = fileButton?.getAttribute('data-file-href')?.trim() || ''
+          const anchor = target?.closest<HTMLAnchorElement>('a[href]')
+          const rawHref = buttonHref || anchor?.getAttribute('href')?.trim() || ''
+          if (!rawHref) return
+          const handled = onFileLinkClick(rawHref)
+          if (!handled) return
+          event.preventDefault()
+          event.stopPropagation()
+        }}
         className={cn(
           'ai-manus-question-prompt__card rounded-[22px] border border-[var(--border-light)] bg-[var(--background-white-main)]',
           isCompact ? 'px-4 py-4' : 'px-6 py-5'
@@ -130,7 +149,12 @@ export function ClarifyQuestion({
                 'font-medium text-[var(--text-primary)]',
                 isCompact ? 'text-[15px]' : 'text-[16px]'
               )}
-              dangerouslySetInnerHTML={{ __html: renderMarkdownInline(question) }}
+              dangerouslySetInnerHTML={{
+                __html: renderMarkdownInline(question, {
+                  resolveWorkspaceFileLink,
+                  isWorkspaceFileLink,
+                }),
+              }}
             />
             {options.length === 0 ? (
               <div
@@ -150,7 +174,7 @@ export function ClarifyQuestion({
                       key={option.id}
                       type="button"
                       onClick={(event) => {
-                        if ((event.target as HTMLElement | null)?.closest('a')) return
+                        if ((event.target as HTMLElement | null)?.closest('a,[data-file-href]')) return
                         toggleSelection(option.id)
                       }}
                       disabled={!interactive}
@@ -166,7 +190,10 @@ export function ClarifyQuestion({
                     >
                       <span
                         dangerouslySetInnerHTML={{
-                          __html: renderMarkdownInline(option.label),
+                          __html: renderMarkdownInline(option.label, {
+                            resolveWorkspaceFileLink,
+                            isWorkspaceFileLink,
+                          }),
                         }}
                       />
                     </button>
@@ -197,7 +224,12 @@ export function ClarifyQuestion({
             <div className="rounded-[16px] border border-[var(--border-light)] bg-[var(--fill-tsp-white-light)] px-4 py-3">
               <div
                 className={cn('font-medium text-[var(--text-primary)]', isCompact ? 'text-[12px]' : 'text-[12px]')}
-                dangerouslySetInnerHTML={{ __html: renderMarkdownInline(question) }}
+                dangerouslySetInnerHTML={{
+                  __html: renderMarkdownInline(question, {
+                    resolveWorkspaceFileLink,
+                    isWorkspaceFileLink,
+                  }),
+                }}
               />
               <div className="mt-2 flex flex-wrap gap-2">
                 {selectedLabels.length > 0 ? (
@@ -208,7 +240,12 @@ export function ClarifyQuestion({
                         'rounded-full border border-[var(--border-input-active)] bg-[var(--fill-blue)] px-3 py-1 font-medium text-[var(--text-primary)]',
                         isCompact ? 'text-[11px]' : 'text-[11px]'
                       )}
-                      dangerouslySetInnerHTML={{ __html: renderMarkdownInline(label) }}
+                      dangerouslySetInnerHTML={{
+                        __html: renderMarkdownInline(label, {
+                          resolveWorkspaceFileLink,
+                          isWorkspaceFileLink,
+                        }),
+                      }}
                     >
                     </span>
                   ))
